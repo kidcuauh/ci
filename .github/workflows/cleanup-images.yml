@@ -1,0 +1,159 @@
+name: cleanup-images
+
+# Retención de versiones de imágenes en GHCR. Arranca en dry-run. Documentación:
+# docs/cleanup-images.md. La decisión de qué borrar la toma scripts/cleanup-select.sh.
+
+on:
+  workflow_call:
+    inputs:
+      image-names:
+        description: Nombres de imagen separados por coma (vacío = nombre del repo que llama)
+        type: string
+        default: ""
+      keep-last:
+        description: Versiones con tag sha- más recientes que se conservan
+        type: number
+        default: 20
+      keep-days:
+        description: Toda versión con tag más joven que esto se conserva
+        type: number
+        default: 14
+      untagged-days:
+        description: Las versiones sin tag con esta edad o más se borran
+        type: number
+        default: 7
+      infra-path:
+        description: Directorio del repo cuyos archivos protegen digests y tags (vacío = sin esta protección)
+        type: string
+        default: infra
+      dry-run:
+        description: true = solo informa; false = borra
+        type: boolean
+        default: true
+      max-deletions:
+        description: Tope de borrados por imagen; si se supera, falla sin borrar
+        type: number
+        default: 200
+
+permissions: {}
+
+jobs:
+  cleanup:
+    name: cleanup
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read # checkout
+      packages: write # borrar versiones de los paquetes enlazados al repo
+    steps:
+      - name: Checkout del repo que llama (rama por defecto)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: caller
+          persist-credentials: false
+
+      # Commit exacto de este workflow. Un contexto vacío haría que checkout use la rama
+      # por defecto de ci sin fijar: se valida antes.
+      - name: Validar el commit de ci
+        env:
+          WF_REPO: ${{ job.workflow_repository }}
+          WF_SHA: ${{ job.workflow_sha }}
+        run: |
+          [[ "$WF_REPO" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ && "$WF_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::no se pudo determinar el commit exacto de este workflow"
+            exit 1
+          }
+
+      - name: Checkout de ci (script de selección)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: ci
+          persist-credentials: false
+
+      - name: Limpiar versiones
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          IN_IMAGE_NAMES: ${{ inputs.image-names }}
+          IN_KEEP_LAST: ${{ inputs.keep-last }}
+          IN_KEEP_DAYS: ${{ inputs.keep-days }}
+          IN_UNTAGGED_DAYS: ${{ inputs.untagged-days }}
+          IN_INFRA_PATH: ${{ inputs.infra-path }}
+          IN_DRY_RUN: ${{ inputs.dry-run }}
+          IN_MAX_DELETIONS: ${{ inputs.max-deletions }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+
+          for n in "$IN_KEEP_LAST" "$IN_KEEP_DAYS" "$IN_UNTAGGED_DAYS" "$IN_MAX_DELETIONS"; do
+            [[ "$n" =~ ^[0-9]+$ ]] || fail "los umbrales deben ser enteros no negativos"
+          done
+          case "$IN_DRY_RUN" in true | false) ;; *) fail "dry-run inválido" ;; esac
+
+          infra_args=()
+          if [[ -n "$IN_INFRA_PATH" ]]; then
+            [[ "$IN_INFRA_PATH" =~ ^[A-Za-z0-9._/-]+$ && "$IN_INFRA_PATH" != /* && "$IN_INFRA_PATH" != *..* ]] ||
+              fail "infra-path inválido"
+            # Un typo no debe desactivar la protección.
+            [[ -d "caller/$IN_INFRA_PATH" ]] ||
+              fail "infra-path '$IN_INFRA_PATH' no existe en la rama por defecto; usa '' para desactivar la protección"
+            infra_args=(--infra-dir "caller/$IN_INFRA_PATH")
+          else
+            echo "::warning::infra-path vacío: no hay protección por referencias en infra"
+          fi
+
+          names="$IN_IMAGE_NAMES"
+          if [[ -z "$names" ]]; then names="${REPO_NAME,,}"; fi
+          re_name='^[a-z0-9]+([._-][a-z0-9]+)*(/[a-z0-9]+([._-][a-z0-9]+)*)*$'
+
+          owner="$GITHUB_REPOSITORY_OWNER"
+          kind="$(gh api "users/${owner}" --jq .type)"
+          case "$kind" in
+            Organization) base="orgs/${owner}" ;;
+            User) base="users/${owner}" ;;
+            *) fail "tipo de dueño desconocido: $kind" ;;
+          esac
+
+          failed=0
+          IFS=, read -r -a list <<<"$names"
+          for raw in "${list[@]}"; do
+            name="$(printf '%s' "$raw" | tr -d '[:space:]')"
+            [[ "$name" =~ $re_name ]] || fail "nombre de imagen inválido en image-names"
+            enc="${name//\//%2F}"
+            work="$RUNNER_TEMP/cleanup-${enc}"
+            mkdir -p "$work"
+
+            gh api --paginate "${base}/packages/container/${enc}/versions?per_page=100" | jq -s 'add // []' >"$work/versions.json"
+
+            echo "## ${name}" >>"$GITHUB_STEP_SUMMARY"
+            if ! bash ci/scripts/cleanup-select.sh \
+              --versions "$work/versions.json" --ids-file "$work/ids.txt" \
+              --keep-last "$IN_KEEP_LAST" --keep-days "$IN_KEEP_DAYS" \
+              --untagged-days "$IN_UNTAGGED_DAYS" --max-deletions "$IN_MAX_DELETIONS" \
+              ${infra_args[@]+"${infra_args[@]}"} >"$work/table.md"; then
+              cat "$work/table.md" >>"$GITHUB_STEP_SUMMARY" || true
+              failed=1
+              continue
+            fi
+            cat "$work/table.md" >>"$GITHUB_STEP_SUMMARY"
+
+            if [[ "$IN_DRY_RUN" == true ]]; then
+              echo "dry-run: no se borra nada ($(wc -l <"$work/ids.txt" | tr -d ' ') candidatas)" >>"$GITHUB_STEP_SUMMARY"
+              continue
+            fi
+            deleted=0
+            while IFS= read -r id; do
+              [[ -n "$id" ]] || continue
+              if gh api -X DELETE "${base}/packages/container/${enc}/versions/${id}" >/dev/null; then
+                deleted=$((deleted + 1))
+              else
+                echo "::error::no se pudo borrar la versión ${id} de ${name}"
+                failed=1
+              fi
+            done <"$work/ids.txt"
+            echo "Borradas: ${deleted}" >>"$GITHUB_STEP_SUMMARY"
+          done
+          exit "$failed"

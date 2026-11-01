@@ -1,0 +1,10 @@
+name: x
+on: [push]
+permissions: {}
+jobs:
+  j:
+    runs-on: ubuntu-24.04
+    steps:
+      # pull_request_target no se usa; solo se menciona
+      - if: github.event_name == 'pull_request_target'
+        run: exit 1

@@ -13,6 +13,12 @@ Workflows reutilizables de GitHub Actions para los proyectos de kidcuauh. Los ll
 - `scripts/check-workflows.sh` es una guardia de texto de mejor esfuerzo (no parsea YAML) que corre en cada PR; la respaldan zizmor y los ajustes de Actions del repo. La atesta el propio workflow del PR, así que frena accidentes, no a un dueño comprometido.
 - Las versiones y hashes de actionlint y zizmor en `lint.yml` se actualizan a mano: Dependabot no los ve.
 
+## Workflows
+
+- `build-push.yml`: construye, escanea y publica una imagen en GHCR. Ver [docs/build-push.md](docs/build-push.md).
+- `cleanup-images.yml`: retención de versiones de imágenes. Ver [docs/cleanup-images.md](docs/cleanup-images.md).
+- `selftest.yml`: prueba `build-push.yml` con `push: false` sobre imágenes de `tests/fixtures/`. Dos de sus jobs fallan a propósito (`imagen-cve`, `imagen-secreto`) y dejan el run en rojo: el check que cuenta es `resultado`.
+
 ## Compatibilidad hacia atrás
 
 Nunca se quita ni se renombra un input, un secret ni un output. Los inputs nuevos llevan valor por defecto. Un cambio incompatible va en un archivo nuevo (por ejemplo `build-push-2.yml`) y el viejo se mantiene.
