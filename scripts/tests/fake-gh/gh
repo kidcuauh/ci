@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# gh falso para las pruebas sin red. Solo entiende "gh api [flags] RUTA".
+#   GET: imprime el fixture de $FAKE_GH_DIR. Mapeo: se quita "repos/<owner>/<repo>"
+#        y lo que queda, con "/" -> "__" y ".json" al final. Sin resto -> repo.json.
+#        Ej.: repos/kidcuauh/ci/rulesets/101 -> rulesets__101.json.
+#        Si el fixture no existe: "HTTP 404" en stderr y exit 1.
+#   -X/--method distinto de GET: no escribe nada; anota "MÉTODO RUTA [cuerpo]" en
+#        $FAKE_GH_LOG (por defecto /dev/null) y sale 0.
+# Se ignoran --paginate, -H, --silent, --jq, etc.
+set -euo pipefail
+
+[[ "${1-}" == "api" ]] || { echo "fake gh: solo se soporta 'gh api'" >&2; exit 2; }
+shift
+
+method=GET
+path=''
+has_input=0
+while (($# > 0)); do
+  case "$1" in
+    -X | --method)
+      method="$2"
+      shift 2
+      ;;
+    --input)
+      has_input=1
+      shift 2
+      ;;
+    -H | --header | -f | -F | --field | --raw-field | --jq | -q | --template | -t | --hostname | --cache)
+      shift 2
+      ;;
+    -*) shift ;;
+    *)
+      [[ -n "$path" ]] || path="$1"
+      shift
+      ;;
+  esac
+done
+
+body=''
+if ((has_input)); then
+  body="$(cat)"
+fi
+
+path="${path#/}"
+path="${path%%\?*}"
+
+if [[ "$method" != "GET" ]]; then
+  line="$method $path"
+  if [[ -n "$body" ]]; then
+    line="$line $(printf '%s' "$body" | jq -c . 2>/dev/null || printf '%s' "$body")"
+  fi
+  printf '%s\n' "$line" >>"${FAKE_GH_LOG:-/dev/null}"
+  echo '{}'
+  exit 0
+fi
+
+IFS=/ read -r _ _ _ rest <<<"$path"
+name="${rest//\//__}"
+[[ -n "$name" ]] || name=repo
+file="${FAKE_GH_DIR:?falta FAKE_GH_DIR}/$name.json"
+if [[ ! -e "$file" ]]; then
+  echo "HTTP 404: Not Found ($path)" >&2
+  exit 1
+fi
+cat "$file"

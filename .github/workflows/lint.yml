@@ -1,0 +1,73 @@
+name: lint
+
+# Sin filtros de ramas ni paths en pull_request: el check obligatorio "lint" debe
+# reportar siempre. Nunca usar el evento pull_request_target en este repo.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: lint-${{ github.ref }}
+  # Los runs de main no se cancelan.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read # solo para hacer checkout
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Instalar actionlint
+        env:
+          VERSION: "1.7.12"
+          SHA256: "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+        run: |
+          set -euo pipefail
+          file="${RUNNER_TEMP}/actionlint.tar.gz"
+          curl -fsSL --retry 3 --retry-all-errors -o "$file" "https://github.com/rhysd/actionlint/releases/download/v${VERSION}/actionlint_${VERSION}_linux_amd64.tar.gz"
+          echo "${SHA256}  ${file}" | sha256sum -c -
+          mkdir -p "${RUNNER_TEMP}/actionlint-x" "${RUNNER_TEMP}/bin"
+          tar -xzf "$file" -C "${RUNNER_TEMP}/actionlint-x"
+          install -m 0755 "$(find "${RUNNER_TEMP}/actionlint-x" -type f -name actionlint | head -n 1)" "${RUNNER_TEMP}/bin/actionlint"
+          echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
+
+      - name: Instalar zizmor
+        env:
+          VERSION: "1.31.1"
+          SHA256: "d185f726bdaf92df78273217dfdd24ebcd6b0ef48cf3ce776ff5762b6e138c99"
+        run: |
+          set -euo pipefail
+          file="${RUNNER_TEMP}/zizmor.tar.gz"
+          curl -fsSL --retry 3 --retry-all-errors -o "$file" "https://github.com/zizmorcore/zizmor/releases/download/v${VERSION}/zizmor-x86_64-unknown-linux-gnu.tar.gz"
+          echo "${SHA256}  ${file}" | sha256sum -c -
+          mkdir -p "${RUNNER_TEMP}/zizmor-x" "${RUNNER_TEMP}/bin"
+          tar -xzf "$file" -C "${RUNNER_TEMP}/zizmor-x"
+          install -m 0755 "$(find "${RUNNER_TEMP}/zizmor-x" -type f -name zizmor | head -n 1)" "${RUNNER_TEMP}/bin/zizmor"
+          echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
+
+      - name: actionlint
+        run: actionlint
+
+      - name: zizmor
+        env:
+          GH_TOKEN: ${{ github.token }} # solo lectura; habilita las auditorías en línea
+        run: zizmor .github/
+
+      - name: Guardia de workflows
+        run: bash scripts/check-workflows.sh
+
+      - name: shellcheck
+        run: shellcheck scripts/*.sh scripts/tests/*.sh scripts/tests/fake-gh/gh
+
+      - name: Pruebas de los scripts
+        run: bash scripts/tests/run.sh

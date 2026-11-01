@@ -1,0 +1,7 @@
+name: x
+on: [push]
+jobs:
+  j:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: echo hola

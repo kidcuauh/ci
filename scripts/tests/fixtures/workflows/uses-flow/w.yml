@@ -1,0 +1,8 @@
+name: x
+on: [push]
+permissions: {}
+jobs:
+  k:
+    runs-on: ubuntu-24.04
+    steps:
+      - {uses: evil/x@v1}

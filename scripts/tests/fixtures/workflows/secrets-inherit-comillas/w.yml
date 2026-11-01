@@ -1,0 +1,7 @@
+name: x
+on: [push]
+permissions: {}
+jobs:
+  j:
+    uses: ./.github/workflows/otro.yml
+    secrets: "inherit"
