@@ -34,7 +34,7 @@ Es un riesgo aceptado a cambio de no mantener pines en cada caller:
 ## Protecciones
 
 - Acceso solo del dueño: sin colaboradores, invitaciones ni deploy keys.
-- Rulesets `main` (rama) y `tags-v` (tags `v*`), sin bypass. En `main`: PR obligatorio (0 aprobaciones, solo squash), check `lint` con la rama al día, commits firmados, historial lineal, sin force-push ni borrado.
+- Rulesets `main` (rama) y `tags-v` (tags `v*`), sin bypass. En `main`: PR obligatorio (0 aprobaciones, solo squash), checks `lint` y `resultado` (del self-test) con la rama al día, commits firmados, historial lineal, sin force-push ni borrado.
 - Releases inmutables.
 - `GITHUB_TOKEN` de solo lectura; Actions no aprueba PR.
 - Actions solo de GitHub y fijadas por SHA; aprobación de workflows de forks para todos los externos.

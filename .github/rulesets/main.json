@@ -31,7 +31,8 @@
         "strict_required_status_checks_policy": true,
         "do_not_enforce_on_create": false,
         "required_status_checks": [
-          { "context": "lint", "integration_id": 15368 }
+          { "context": "lint", "integration_id": 15368 },
+          { "context": "resultado", "integration_id": 15368 }
         ]
       }
     }
