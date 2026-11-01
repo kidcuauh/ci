@@ -82,6 +82,7 @@ bad_case "ruleset main disabled" 1 rulesets__101.json '.enforcement = "disabled"
 bad_case "falta required_signatures" 1 rulesets__101.json '.rules |= map(select(.type != "required_signatures"))'
 bad_case "allowed_merge_methods con merge" 1 rulesets__101.json '(.rules[] | select(.type == "pull_request") | .parameters.allowed_merge_methods) = ["merge","squash"]'
 bad_case "check lint ausente" 1 rulesets__101.json '(.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks) = []'
+bad_case "check resultado ausente" 1 rulesets__101.json '(.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks) |= map(select(.context != "resultado"))'
 bad_case "check lint con otra app" 1 rulesets__101.json '(.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks[0].integration_id) = 1'
 bad_case "rama no al día (strict false)" 1 rulesets__101.json '(.rules[] | select(.type == "required_status_checks") | .parameters.strict_required_status_checks_policy) = false'
 bad_case "ruleset tags-v ausente" 1 rulesets.json 'map(select(.name != "tags-v"))'

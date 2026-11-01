@@ -35,7 +35,7 @@ OWNER="${REPO%%/*}"
 # Expectativas: si cambia la lista de checks o de reglas, se actualizan aquí.
 MAIN_RULE_TYPES='["deletion","non_fast_forward","pull_request","required_linear_history","required_signatures","required_status_checks"]'
 TAGS_RULE_TYPES='["deletion","non_fast_forward","update"]'
-EXPECTED_CHECKS='[{"context":"lint","integration_id":15368}]'
+EXPECTED_CHECKS='[{"context":"lint","integration_id":15368},{"context":"resultado","integration_id":15368}]'
 
 for tool in gh jq; do
   command -v "$tool" >/dev/null 2>&1 || { echo "falta la herramienta: $tool" >&2; exit 2; }
@@ -183,7 +183,7 @@ if ruleset_detail main branch; then
     '[.rules[]? | select(.type == "required_status_checks")][0].parameters.do_not_enforce_on_create == false'
   chk "main: rama al día (strict)" "$DETAIL" \
     '[.rules[]? | select(.type == "required_status_checks")][0].parameters.strict_required_status_checks_policy == true'
-  chk "main: checks obligatorios (lint, app GitHub Actions)" "$DETAIL" \
+  chk "main: checks obligatorios (lint y resultado, app GitHub Actions)" "$DETAIL" \
     '[.rules[]? | select(.type == "required_status_checks")][0].parameters | ((.required_status_checks // []) | map({context, integration_id}) | sort_by(.context)) == ($e | sort_by(.context))' \
     --argjson e "$EXPECTED_CHECKS"
 fi
