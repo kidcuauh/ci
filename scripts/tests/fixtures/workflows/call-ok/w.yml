@@ -1,0 +1,15 @@
+name: x
+on:
+  workflow_call:
+    inputs:
+      a:
+        type: string
+permissions: {}
+jobs:
+  j:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - run: echo hola

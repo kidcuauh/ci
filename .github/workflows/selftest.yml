@@ -1,0 +1,110 @@
+name: selftest
+
+# Prueba build-push.yml con push: false (no publica nada) sobre fixtures reales.
+# Sin filtros en pull_request: el check obligatorio "resultado" debe reportar siempre.
+# Nunca usar pull_request_target en este repo.
+# Dos jobs fallan a propósito (imagen-cve e imagen-secreto): dejan el run en rojo;
+# el check que cuenta es "resultado".
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: selftest-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  imagen-ok:
+    # El workflow llamado pide packages: write, así que el job llamador debe
+    # concederlo; con push: false no se usa.
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/build-push.yml
+    with:
+      context: tests/fixtures/build-ok
+      image-name: selftest-ok
+      build-args: |
+        EJEMPLO=valor-de-ejemplo
+      push: false
+    secrets:
+      # Secreto ficticio, no es un secreto real.
+      BUILD_SECRETS: |
+        prueba=valor-de-prueba-no-secreto
+
+  # Debe fallar: CRITICAL con corrección.
+  imagen-cve:
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/build-push.yml
+    with:
+      context: tests/fixtures/build-cve
+      image-name: selftest-cve
+      push: false
+
+  # Debe fallar: token en una capa.
+  imagen-secreto:
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/build-push.yml
+    with:
+      context: tests/fixtures/build-secret
+      image-name: selftest-secreto
+      push: false
+
+  # Mismo fixture sin compuerta: debe pasar, así imagen-cve falla por la compuerta y no por un build roto.
+  imagen-cve-sin-compuerta:
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/build-push.yml
+    with:
+      context: tests/fixtures/build-cve
+      image-name: selftest-cve-sg
+      push: false
+      scan-fail-on: none
+
+  imagen-secreto-sin-compuerta:
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/build-push.yml
+    with:
+      context: tests/fixtures/build-secret
+      image-name: selftest-secreto-sg
+      push: false
+      scan-fail-on: none
+
+  resultado:
+    name: resultado
+    if: always()
+    needs:
+      - imagen-ok
+      - imagen-cve
+      - imagen-secreto
+      - imagen-cve-sin-compuerta
+      - imagen-secreto-sin-compuerta
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    env:
+      OK: ${{ needs.imagen-ok.result }}
+      CVE: ${{ needs.imagen-cve.result }}
+      SECRETO: ${{ needs.imagen-secreto.result }}
+      CVE_SG: ${{ needs.imagen-cve-sin-compuerta.result }}
+      SECRETO_SG: ${{ needs.imagen-secreto-sin-compuerta.result }}
+      CVE_PUSHED: ${{ needs.imagen-cve.outputs.pushed }}
+      SECRETO_PUSHED: ${{ needs.imagen-secreto.outputs.pushed }}
+    steps:
+      - name: Comprobar resultados
+        run: |
+          printf 'imagen-ok=%s\nimagen-cve=%s\nimagen-secreto=%s\nimagen-cve-sin-compuerta=%s\nimagen-secreto-sin-compuerta=%s\n' \
+            "$OK" "$CVE" "$SECRETO" "$CVE_SG" "$SECRETO_SG"
+          [[ "$OK" == success && "$CVE_SG" == success && "$SECRETO_SG" == success ]] || { echo "::error::deben pasar imagen-ok y las dos sin compuerta"; exit 1; }
+          [[ "$CVE" == failure && "$SECRETO" == failure ]] || { echo "::error::imagen-cve e imagen-secreto deben fallar por la compuerta"; exit 1; }
+          [[ "$CVE_PUSHED" != true && "$SECRETO_PUSHED" != true ]] || { echo "::error::una imagen que falló la compuerta no debe quedar etiquetada"; exit 1; }

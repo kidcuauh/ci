@@ -1,0 +1,6 @@
+# actionlint 1.7.12 aún no conoce job.workflow_repository ni job.workflow_sha
+# (contexto documentado por GitHub). Se ignoran solo esos dos avisos y solo aquí.
+paths:
+  .github/workflows/cleanup-images.yml:
+    ignore:
+      - 'property "workflow_(repository|sha)" is not defined in object type'

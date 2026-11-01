@@ -1,0 +1,393 @@
+name: build-push
+
+# Construye una imagen una vez, la publica en GHCR por digest y sin tag, la escanea
+# con Trivy y, solo si pasa, le pone el tag sha-<12 hex>. Documentación: docs/build-push.md.
+# Sin Actions de terceros: solo actions/* fijadas por SHA y el binario de Trivy con sha256.
+
+on:
+  workflow_call:
+    inputs:
+      image-name:
+        description: Nombre de la imagen sin owner ni registry (vacío = nombre del repo que llama)
+        type: string
+        default: ""
+      context:
+        description: Contexto de build, ruta relativa a la raíz del repo
+        type: string
+        default: "."
+      dockerfile:
+        description: Ruta del Dockerfile desde la raíz del repo (vacío = <context>/Dockerfile)
+        type: string
+        default: ""
+      target:
+        description: Etapa del Dockerfile (vacío = la última)
+        type: string
+        default: ""
+      platforms:
+        description: Una sola plataforma, linux/amd64 o linux/arm64
+        type: string
+        default: linux/amd64
+      build-args:
+        description: Una por línea CLAVE=valor. Nunca secretos ni valores que varíen por ambiente
+        type: string
+        default: ""
+      push:
+        description: false = construye a un tar docker y escanea sin publicar ni etiquetar
+        type: boolean
+        default: true
+      scan-fail-on:
+        description: Severidad que bloquea el tag (CRITICAL, HIGH o none)
+        type: string
+        default: CRITICAL
+    secrets:
+      BUILD_SECRETS:
+        description: Líneas id=valor (valor en una línea; base64:<...> para multilínea)
+        required: false
+    outputs:
+      image:
+        description: ghcr.io/<owner en minúsculas>/<image-name>
+        value: ${{ jobs.build-push.outputs.image }}
+      tag:
+        description: sha-<12 hex>; vacío si no se etiquetó
+        value: ${{ jobs.build-push.outputs.tag }}
+      digest:
+        description: Digest sha256 de la imagen construida
+        value: ${{ jobs.build-push.outputs.digest }}
+      ref:
+        description: <image>:<tag>@<digest>; vacío si no se etiquetó
+        value: ${{ jobs.build-push.outputs.ref }}
+      pushed:
+        description: true solo si publicó, pasó el escaneo y puso el tag
+        value: ${{ jobs.build-push.outputs.pushed }}
+
+permissions: {}
+
+jobs:
+  build-push:
+    name: build-push
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    # El caller debe conceder ambos permisos: el workflow llamado no puede elevarlos.
+    permissions:
+      contents: read # checkout
+      packages: write # publicar en GHCR (con push: false no se usa)
+    env:
+      # Varios espejos de la base de datos, GHCR primero: responde 429 a veces.
+      TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db:2,mirror.gcr.io/aquasec/trivy-db:2,public.ecr.aws/aquasecurity/trivy-db:2
+    outputs:
+      image: ${{ steps.names.outputs.image }}
+      tag: ${{ steps.tag.outputs.tag }}
+      digest: ${{ steps.build.outputs.digest }}
+      ref: ${{ steps.tag.outputs.ref }}
+      pushed: ${{ steps.tag.outputs.pushed || 'false' }}
+    steps:
+      - name: Guardia y validación de inputs
+        id: names
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          IN_IMAGE_NAME: ${{ inputs.image-name }}
+          IN_CONTEXT: ${{ inputs.context }}
+          IN_DOCKERFILE: ${{ inputs.dockerfile }}
+          IN_TARGET: ${{ inputs.target }}
+          IN_PLATFORMS: ${{ inputs.platforms }}
+          IN_BUILD_ARGS: ${{ inputs.build-args }}
+          IN_PUSH: ${{ inputs.push }}
+          IN_SCAN_FAIL_ON: ${{ inputs.scan-fail-on }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+
+          [[ "$EVENT_NAME" != pull_request_target ]] || fail "pull_request_target está prohibido"
+          if [[ "$EVENT_NAME" == pull_request && "$IN_PUSH" == true ]]; then
+            fail "en un pull_request no se publica: usa push: false"
+          fi
+
+          name="$IN_IMAGE_NAME"
+          if [[ -z "$name" ]]; then name="${REPO_NAME,,}"; fi
+          re_name='^[a-z0-9]+([._-][a-z0-9]+)*(/[a-z0-9]+([._-][a-z0-9]+)*)*$'
+          [[ "$name" =~ $re_name ]] || fail "image-name inválido"
+
+          check_path() { # etiqueta valor
+            [[ "$2" =~ ^[A-Za-z0-9._/-]+$ ]] || fail "$1 inválido: solo A-Za-z0-9._/-"
+            [[ "$2" != /* && "$2" != -* && "$2" != *..* ]] || fail "$1 inválido: ruta relativa, sin '..'"
+          }
+          check_path context "$IN_CONTEXT"
+          dockerfile="$IN_DOCKERFILE"
+          if [[ -z "$dockerfile" ]]; then dockerfile="$IN_CONTEXT/Dockerfile"; fi
+          check_path dockerfile "$dockerfile"
+
+          [[ "$IN_TARGET" =~ ^[A-Za-z0-9._-]*$ ]] || fail "target inválido"
+          [[ "$IN_PLATFORMS" =~ ^linux/(amd64|arm64)$ ]] || fail "platforms: una sola, linux/amd64 o linux/arm64"
+          case "$IN_SCAN_FAIL_ON" in CRITICAL | HIGH | none) ;; *) fail "scan-fail-on: CRITICAL, HIGH o none" ;; esac
+          case "$IN_PUSH" in true | false) ;; *) fail "push inválido" ;; esac
+
+          # build-args saneados a un archivo: se relee en el paso de build.
+          : >"$RUNNER_TEMP/build-args"
+          while IFS= read -r line || [[ -n "$line" ]]; do
+            line="${line%$'\r'}"
+            [[ -n "$line" ]] || continue
+            [[ "$line" == *=* ]] || fail "build-args: cada línea es CLAVE=valor"
+            [[ "${line%%=*}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || fail "build-args: clave inválida"
+            [[ "${line%%=*}" != BUILDKIT_* ]] || fail "build-args: las claves BUILDKIT_* están prohibidas"
+            printf '%s\n' "$line" >>"$RUNNER_TEMP/build-args"
+          done <<<"$IN_BUILD_ARGS"
+
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          {
+            echo "image=ghcr.io/${owner}/${name}"
+            echo "name=${name}"
+            echo "sbom-artifact=sbom-${name//\//-}-$(printf '%s' "$name" | sha256sum | cut -c1-8)"
+            echo "dockerfile=${dockerfile}"
+            echo "tag=sha-${GITHUB_SHA::12}"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Preparar secretos de build
+        env:
+          BUILD_SECRETS: ${{ secrets.BUILD_SECRETS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          dir="$RUNNER_TEMP/build-secrets"
+          mkdir -p "$dir"
+          mask() { # add-mask exige escapar % CR LF
+            local v="$1"
+            v="${v//'%'/'%25'}"
+            v="${v//$'\r'/'%0D'}"
+            v="${v//$'\n'/'%0A'}"
+            echo "::add-mask::$v"
+          }
+          mask_lines() { # enmascara cada línea no vacía
+            local l
+            while IFS= read -r l || [[ -n "$l" ]]; do
+              l="${l%$'\r'}"
+              if [[ -n "$l" ]]; then mask "$l"; fi
+            done
+          }
+          while IFS= read -r line || [[ -n "$line" ]]; do
+            line="${line%$'\r'}"
+            [[ -n "$line" ]] || continue
+            [[ "$line" == *=* ]] || { echo "::error::BUILD_SECRETS: cada línea es id=valor"; exit 1; }
+            id="${line%%=*}"
+            value="${line#*=}"
+            # La máscara va antes de cualquier otro uso del valor.
+            if [[ -n "$value" ]]; then mask "$value"; fi
+            [[ "$id" =~ ^[a-z0-9_-]+$ ]] || { echo "::error::BUILD_SECRETS: id inválido (a-z0-9_-)"; exit 1; }
+            [[ ! -e "$dir/$id" ]] || { echo "::error::BUILD_SECRETS: id repetido '$id'"; exit 1; }
+            if [[ "$value" == base64:* ]]; then
+              printf '%s' "${value#base64:}" | base64 -d >"$dir/$id" || { echo "::error::BUILD_SECRETS: base64 inválido en '$id'"; exit 1; }
+              mask_lines <"$dir/$id"
+            else
+              printf '%s' "$value" >"$dir/$id"
+            fi
+          done <<<"$BUILD_SECRETS"
+
+      - name: Login a ghcr.io
+        if: inputs.push
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+      # Los pasos run: no ven las variables de runtime del servicio de caché; este
+      # paso las exporta para que buildx pueda hablar con él.
+      - name: Exportar variables de caché
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            for (const k of ['ACTIONS_RUNTIME_TOKEN', 'ACTIONS_RESULTS_URL', 'ACTIONS_CACHE_URL', 'ACTIONS_CACHE_SERVICE_V2']) {
+              if (process.env[k]) core.exportVariable(k, process.env[k]);
+            }
+
+      - name: Crear el builder
+        env:
+          BUILDKIT_IMAGE: moby/buildkit:v0.34.0@sha256:b059f8d7226d0b326bc871af489a5dddf65e36af4d20d14251b072974d9ee87c
+        run: |
+          set -euo pipefail
+          docker buildx version
+          ver="$(docker buildx version | grep -oE 'v?[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)"
+          ver="${ver#v}"
+          if [[ "$(printf '%s\n' "0.21.0" "$ver" | sort -V | head -n 1)" != "0.21.0" ]]; then
+            echo "::error::buildx $ver es menor que 0.21 (caché gha v2)"
+            exit 1
+          fi
+          docker buildx create --name ci-build --driver docker-container \
+            --driver-opt "image=${BUILDKIT_IMAGE}" --bootstrap --use
+
+      - name: Build
+        id: build
+        env:
+          IMAGE: ${{ steps.names.outputs.image }}
+          NAME: ${{ steps.names.outputs.name }}
+          DOCKERFILE: ${{ steps.names.outputs.dockerfile }}
+          CONTEXT: ${{ inputs.context }}
+          TARGET: ${{ inputs.target }}
+          PLATFORMS: ${{ inputs.platforms }}
+          PUSH: ${{ inputs.push }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          cmd=(docker buildx build --builder ci-build
+            --platform "$PLATFORMS"
+            --file "$DOCKERFILE"
+            --provenance=false --sbom=false
+            --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}"
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}"
+            --cache-from "type=gha,scope=${NAME},version=2"
+            --cache-to "type=gha,scope=${NAME},mode=max,version=2,ignore-error=true"
+            --metadata-file "$RUNNER_TEMP/metadata.json")
+          if [[ -n "$TARGET" ]]; then cmd+=(--target "$TARGET"); fi
+          while IFS= read -r arg; do cmd+=(--build-arg "$arg"); done <"$RUNNER_TEMP/build-args"
+          for f in "$RUNNER_TEMP"/build-secrets/*; do
+            cmd+=(--secret "id=$(basename "$f"),src=$f")
+          done
+          if [[ "$PUSH" == true ]]; then
+            cmd+=(--output "type=image,name=${IMAGE},push-by-digest=true,name-canonical=true,push=true")
+          else
+            cmd+=(--output "type=docker,dest=${RUNNER_TEMP}/image.tar")
+          fi
+          # ./ evita que buildx lea "github.com/x/y" como un contexto git remoto.
+          cmd+=("./${CONTEXT}")
+          "${cmd[@]}"
+
+          digest="$(jq -r '."containerimage.digest" // empty' "$RUNNER_TEMP/metadata.json")"
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::el build no dio un digest válido"; exit 1; }
+          echo "digest=${digest}" >>"$GITHUB_OUTPUT"
+
+      - name: Instalar Trivy
+        env:
+          VERSION: "0.76.0"
+          SHA256: "e24b1c51293c1b15e4ba8d45bbc7891ba053f90278ec2698f3562c993e145fe7"
+        run: |
+          set -euo pipefail
+          file="${RUNNER_TEMP}/trivy.tar.gz"
+          curl -fsSL --retry 3 --retry-all-errors -o "$file" "https://github.com/aquasecurity/trivy/releases/download/v${VERSION}/trivy_${VERSION}_Linux-64bit.tar.gz"
+          echo "${SHA256}  ${file}" | sha256sum -c -
+          mkdir -p "${RUNNER_TEMP}/trivy-x" "${RUNNER_TEMP}/bin"
+          tar -xzf "$file" -C "${RUNNER_TEMP}/trivy-x" trivy
+          install -m 0755 "${RUNNER_TEMP}/trivy-x/trivy" "${RUNNER_TEMP}/bin/trivy"
+          echo "${RUNNER_TEMP}/bin" >>"$GITHUB_PATH"
+
+      - name: Escaneo informativo (HIGH y CRITICAL)
+        env:
+          IMAGE: ${{ steps.names.outputs.image }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          PUSH: ${{ inputs.push }}
+        run: |
+          set -euo pipefail
+          if [[ "$PUSH" == true ]]; then
+            target=(--image-src remote "${IMAGE}@${DIGEST}")
+          else
+            target=(--input "${RUNNER_TEMP}/image.tar")
+          fi
+          trivy image --quiet --cache-dir "${RUNNER_TEMP}/trivy-cache" \
+            --severity HIGH,CRITICAL --scanners vuln,secret --ignore-unfixed \
+            --format table --exit-code 0 --output "${RUNNER_TEMP}/scan-report.txt" "${target[@]}"
+          {
+            echo "### Escaneo: HIGH y CRITICAL con corrección disponible"
+            echo '```'
+            cat "${RUNNER_TEMP}/scan-report.txt"
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Compuerta de escaneo
+        id: gate
+        if: inputs.scan-fail-on != 'none'
+        env:
+          IMAGE: ${{ steps.names.outputs.image }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          PUSH: ${{ inputs.push }}
+          FAIL_ON: ${{ inputs.scan-fail-on }}
+        run: |
+          set -euo pipefail
+          if [[ "$PUSH" == true ]]; then
+            target=(--image-src remote "${IMAGE}@${DIGEST}")
+          else
+            target=(--input "${RUNNER_TEMP}/image.tar")
+          fi
+          severity=CRITICAL
+          if [[ "$FAIL_ON" == HIGH ]]; then severity=HIGH,CRITICAL; fi
+          ignore=()
+          if [[ -f .trivyignore ]]; then ignore=(--ignorefile .trivyignore); fi
+          trivy image --quiet --cache-dir "${RUNNER_TEMP}/trivy-cache" \
+            --severity "$severity" --scanners vuln --ignore-unfixed --exit-code 1 \
+            ${ignore[@]+"${ignore[@]}"} "${target[@]}"
+          # Secretos: de cualquier severidad (Trivy clasifica private-key como HIGH).
+          trivy image --quiet --cache-dir "${RUNNER_TEMP}/trivy-cache" \
+            --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL --scanners secret --exit-code 1 \
+            ${ignore[@]+"${ignore[@]}"} "${target[@]}"
+
+      - name: SBOM (CycloneDX)
+        if: inputs.push
+        env:
+          IMAGE: ${{ steps.names.outputs.image }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          trivy image --quiet --cache-dir "${RUNNER_TEMP}/trivy-cache" --image-src remote \
+            --format cyclonedx --output "${RUNNER_TEMP}/sbom.cdx.json" "${IMAGE}@${DIGEST}"
+
+      - name: Subir SBOM
+        if: inputs.push
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.names.outputs.sbom-artifact }}
+          path: ${{ runner.temp }}/sbom.cdx.json
+          retention-days: 30
+          if-no-files-found: error
+
+      # Solo se llega aquí si la compuerta pasó (o se desactivó con none).
+      - name: Poner el tag
+        id: tag
+        if: inputs.push
+        env:
+          IMAGE: ${{ steps.names.outputs.image }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          TAG: ${{ steps.names.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # --prefer-index=false: sin él buildx envuelve el manifiesto en un índice
+          # nuevo y el tag apuntaría a otro digest.
+          docker buildx imagetools create --prefer-index=false -t "${IMAGE}:${TAG}" "${IMAGE}@${DIGEST}"
+          got="$(docker buildx imagetools inspect "${IMAGE}:${TAG}" --format '{{json .Manifest}}' | jq -r '.digest // empty')"
+          if [[ "$got" != "$DIGEST" ]]; then
+            echo "::error::el tag ${TAG} apunta a ${got}, no a ${DIGEST}"
+            exit 1
+          fi
+          {
+            echo "tag=${TAG}"
+            echo "ref=${IMAGE}:${TAG}@${DIGEST}"
+            echo "pushed=true"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: Resumen
+        if: always()
+        env:
+          IMAGE: ${{ steps.names.outputs.image }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          PUSHED: ${{ steps.tag.outputs.pushed || 'false' }}
+          GATE: ${{ steps.gate.outcome }}
+        run: |
+          {
+            echo "### build-push"
+            echo "- Imagen: \`${IMAGE}\`"
+            echo "- Digest: \`${DIGEST:-sin digest}\`"
+            echo "- Tag: \`${TAG:-sin tag}\`"
+            echo "- Publicada y etiquetada: ${PUSHED}"
+            echo "- Compuerta de escaneo: ${GATE:-omitida}"
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Limpieza
+        if: always()
+        run: |
+          rm -rf "$RUNNER_TEMP/build-secrets"
+          docker logout ghcr.io || true
+          docker buildx rm --force ci-build || true

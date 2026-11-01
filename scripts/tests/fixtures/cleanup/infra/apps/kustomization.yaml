@@ -1,0 +1,5 @@
+# Fixture: manifiestos que referencian versiones de imagen.
+images:
+  - name: ghcr.io/mi-org/mi-app
+    newTag: "sha-0ld000000001"
+    digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa

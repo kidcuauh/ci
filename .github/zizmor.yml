@@ -1,0 +1,6 @@
+# El self-test llama al workflow del propio repo con la ruta local clásica (./),
+# que actionlint y scripts/check-workflows.sh entienden. Solo se silencia esa auditoría.
+rules:
+  self-repository:
+    ignore:
+      - selftest.yml

@@ -169,9 +169,16 @@ bash "$root/scripts/check-workflows.sh" >/dev/null 2>&1
 expect_exit "check-workflows: pasa sobre .github/workflows real" 0 $?
 bash "$root/scripts/check-workflows.sh" "$here/fixtures/workflows/bueno" >/dev/null 2>&1
 expect_exit "check-workflows: fixture bueno pasa" 0 $?
-for c in tercero tag sha-corto pull-request-target secrets-inherit sin-permissions permissions-write uses-flow uses-comillas uses-espacio secrets-inherit-comillas; do
+for c in tercero tag sha-corto pull-request-target secrets-inherit sin-permissions permissions-write uses-flow uses-comillas uses-espacio secrets-inherit-comillas \
+  prt-lista prt-escalar call-permissions-no-vacios write-contents write-id-token write-attestations-flow \
+  prt-lista-sin-indent call-lista-sin-indent write-flow-dos; do
   bash "$root/scripts/check-workflows.sh" "$here/fixtures/workflows/$c" >/dev/null 2>&1
   expect_exit "check-workflows: falla con $c" 1 $?
+done
+
+for c in prt-solo-en-if call-ok write-packages-ok; do
+  bash "$root/scripts/check-workflows.sh" "$here/fixtures/workflows/$c" >/dev/null 2>&1
+  expect_exit "check-workflows: fixture $c pasa" 0 $?
 done
 
 # directorio sin workflows: falla con mensaje claro, sin variable sin definir
@@ -179,6 +186,10 @@ bash "$root/scripts/check-workflows.sh" "$tmp/no-existe" >"$tmp/cw.out" 2>&1
 expect_exit "check-workflows: sin workflows falla" 1 $?
 ! grep -q 'unbound' "$tmp/cw.out"
 result "check-workflows: sin workflows no revienta con unbound" $?
+
+# (e) cleanup-select
+# shellcheck source=/dev/null
+source "$here/cleanup-select-tests.sh"
 
 printf '\n%d ok, %d fallidas\n' "$PASS" "$FAILED"
 ((FAILED == 0))

@@ -8,6 +8,18 @@
 # comprometido, que puede editar la guardia.
 set -euo pipefail
 
+# Permisos que sí pueden ser write. Un elemento "scope" vale en todos los archivos;
+# "archivo.yml:scope" solo en ese archivo (otra tarea puede necesitar, por ejemplo,
+# "release.yml:contents"). Todo lo demás con write se rechaza.
+WRITE_ALLOWED=("packages")
+
+# Extrae el bloque `on:` de la raíz (número de línea:texto sin comentarios).
+IFS= read -r -d '' AWK_ON <<'AWK' || true
+/^["']?on["']?[[:space:]]*:/ { inon = 1; l = $0; sub(/^[^:]*:/, "", l); sub(/#.*/, "", l); print NR ":" l; next }
+inon && /^[^[:space:]#-]/ { inon = 0 }
+inon { l = $0; sub(/#.*/, "", l); print NR ":" l }
+AWK
+
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 dir="${1:-$root/.github/workflows}"
 errors=0
@@ -42,10 +54,13 @@ for f in "${files[@]}" ${extra[@]+"${extra[@]}"}; do
     err "$f:$n: uses '$v' no es local ni actions/* fijado por SHA de 40 caracteres"
   done < <(grep -nE '(^|[[:space:]{,-])["'"'"']?uses["'"'"']?[[:space:]]*:' "$f" || true)
 
-  # 2. nada de pull_request_target
+  # 2. nada de pull_request_target como disparador (clave bajo `on:`, lista o escalar);
+  #    mencionarlo en un `if:` o un comentario no cuenta.
+  on_block="$(awk "$AWK_ON" "$f")"
   while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
     err "$f:${line%%:*}: pull_request_target está prohibido"
-  done < <(grep -nE '^[^#]*pull_request_target' "$f" || true)
+  done < <(grep -E 'pull_request_target' <<<"$on_block" || true)
 
   # 3. nada de secrets: inherit
   while IFS= read -r line; do
@@ -59,6 +74,27 @@ for f in "${files[@]}" ${extra[@]+"${extra[@]}"}; do
   while IFS= read -r line; do
     err "$f:${line%%:*}: 'permissions: write-all' está prohibido (usa un mapa con permisos concretos)"
   done < <(grep -nE '^[[:space:]]*["'"'"']?permissions["'"'"']?[[:space:]]*:[[:space:]]*["'"'"']?write-all["'"'"']?[[:space:]]*(#.*)?$' "$f" || true)
+
+  # 5. un workflow reutilizable lleva `permissions: {}` a nivel raíz
+  if [[ "$f" == "$dir"/* ]] && grep -qE 'workflow_call' <<<"$on_block" &&
+    ! grep -qE '^["'"'"']?permissions["'"'"']?[[:space:]]*:[[:space:]]*\{[[:space:]]*\}[[:space:]]*(#.*)?$' "$f"; then
+    err "$f: un workflow con workflow_call debe llevar 'permissions: {}' a nivel raíz"
+  fi
+
+  # 6. ningún permiso write salvo los de WRITE_ALLOWED
+  while IFS= read -r line; do
+    n="${line%%:*}"
+    # Todos los scopes write de la línea (un mapa en flujo puede traer varios).
+    while IFS= read -r scope; do
+      [[ -n "$scope" ]] || continue
+      scope="$(printf '%s' "$scope" | sed -E 's/["'"'"']?[[:space:]]*:.*$//')"
+      ok=0
+      for a in ${WRITE_ALLOWED[@]+"${WRITE_ALLOWED[@]}"}; do
+        if [[ "$a" == "$scope" || "$a" == "$(basename "$f"):$scope" ]]; then ok=1; fi
+      done
+      if ((!ok)); then err "$f:$n: permiso '$scope: write' no permitido (solo ${WRITE_ALLOWED[*]})"; fi
+    done < <(printf '%s\n' "${line#*:}" | grep -oE '(actions|attestations|checks|contents|deployments|discussions|id-token|issues|models|packages|pages|pull-requests|repository-projects|security-events|statuses)["'"'"']?[[:space:]]*:[[:space:]]*["'"'"']?write' || true)
+  done < <(grep -nE '^[^#]*(^|[[:space:]{,])["'"'"']?(actions|attestations|checks|contents|deployments|discussions|id-token|issues|models|packages|pages|pull-requests|repository-projects|security-events|statuses)["'"'"']?[[:space:]]*:[[:space:]]*["'"'"']?write["'"'"']?' "$f" || true)
 done
 
 if ((errors > 0)); then
