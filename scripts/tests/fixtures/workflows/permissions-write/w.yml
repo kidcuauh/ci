@@ -1,0 +1,8 @@
+name: x
+on: [push]
+permissions: write-all
+jobs:
+  k:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: echo hi

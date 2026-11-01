@@ -1,0 +1,8 @@
+name: x
+on: [push]
+permissions: {}
+jobs:
+  j:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: otro/accion@3d3c42e5aac5ba805825da76410c181273ba90b1 # v1

@@ -1,0 +1,9 @@
+name: x
+on:
+  pull_request_target:
+permissions: {}
+jobs:
+  j:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: echo hola

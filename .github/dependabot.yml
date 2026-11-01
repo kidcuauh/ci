@@ -1,0 +1,13 @@
+# Mantiene fijadas por SHA las Actions de GitHub que use este repo.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns:
+          - "*"
