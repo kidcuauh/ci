@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# gh falso para las pruebas sin red de deploy-release.sh. Solo entiende "gh api".
+#   api -X POST repos/S/git/refs -f ref=refs/tags/T -f sha=R
+#       crea el tag en el origin bare $FAKE_ORIGIN; si existe, sale 1 con
+#       "gh: Reference already exists (HTTP 422)". FAKE_GH_COLLIDE_TAG=T simula que
+#       otro run crea T justo antes (una sola vez).
+#   api -X POST repos/S/releases -f tag_name=T ...
+#       registra el Release en $FAKE_RELEASES; FAKE_GH_RELEASE_FAIL=1 lo hace fallar.
+#   api repos/S/releases/tags/T
+#       imprime el Release o sale 1 con "gh: Not Found (HTTP 404)".
+# Cada llamada se anota en $FAKE_GH_LOG (por defecto /dev/null).
+set -euo pipefail
+
+echo "gh $*" >>"${FAKE_GH_LOG:-/dev/null}"
+[[ "${1-}" == api ]] || { echo "fake gh: solo 'gh api'" >&2; exit 2; }
+shift
+
+method=GET
+path=""
+ref=""
+sha=""
+tag_name=""
+while (($# > 0)); do
+  case "$1" in
+    -X)
+      method="$2"
+      shift 2
+      ;;
+    -f | -F)
+      case "$2" in
+        ref=*) ref="${2#ref=}" ;;
+        sha=*) sha="${2#sha=}" ;;
+        tag_name=*) tag_name="${2#tag_name=}" ;;
+      esac
+      shift 2
+      ;;
+    -*) shift ;;
+    *)
+      path="$1"
+      shift
+      ;;
+  esac
+done
+
+case "$method $path" in
+  "POST repos/"*"/git/refs")
+    if [[ -n "${FAKE_GH_COLLIDE_TAG:-}" && "refs/tags/$FAKE_GH_COLLIDE_TAG" == "$ref" && ! -e "$FAKE_RELEASES/.collided" ]]; then
+      : >"$FAKE_RELEASES/.collided"
+      other="$(git --git-dir="$FAKE_ORIGIN" rev-parse refs/heads/main)"
+      git --git-dir="$FAKE_ORIGIN" update-ref "$ref" "$other"
+    fi
+    if git --git-dir="$FAKE_ORIGIN" rev-parse -q --verify "$ref" >/dev/null; then
+      echo "gh: Reference already exists (HTTP 422)" >&2
+      exit 1
+    fi
+    git --git-dir="$FAKE_ORIGIN" update-ref "$ref" "$sha"
+    printf '{"ref":"%s","object":{"sha":"%s"}}\n' "$ref" "$sha"
+    ;;
+  "POST repos/"*"/releases")
+    if [[ "${FAKE_GH_RELEASE_FAIL:-}" == 1 ]]; then
+      echo "gh: Server Error (HTTP 500)" >&2
+      exit 1
+    fi
+    printf '{"tag_name":"%s","draft":false,"prerelease":false}\n' "$tag_name" >"$FAKE_RELEASES/$tag_name"
+    cat "$FAKE_RELEASES/$tag_name"
+    ;;
+  "GET repos/"*"/releases/tags/"*)
+    t="${path##*/}"
+    if [[ ! -f "$FAKE_RELEASES/$t" ]]; then
+      echo "gh: Not Found (HTTP 404)" >&2
+      exit 1
+    fi
+    cat "$FAKE_RELEASES/$t"
+    ;;
+  *)
+    echo "fake gh: ruta no soportada" >&2
+    exit 2
+    ;;
+esac

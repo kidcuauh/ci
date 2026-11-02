@@ -1,0 +1,38 @@
+name: deploy-tests
+
+# Pruebas sin red de los scripts deploy-*.sh (scripts/tests/deploy-tests.sh). Sin
+# filtros de ramas ni paths en pull_request: el check debe reportar siempre. Nunca usar
+# el evento pull_request_target en este repo.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: deploy-tests-${{ github.ref }}
+  # Los runs de main no se cancelan.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  deploy-tests:
+    name: deploy-tests
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    permissions:
+      contents: read # checkout
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Instalar herramientas
+        run: bash scripts/install-tools.sh yq kubectl helm flux kubeconform gitleaks
+
+      - name: shellcheck
+        run: shellcheck scripts/deploy-*.sh scripts/tests/deploy-tests.sh scripts/tests/fake-docker/docker scripts/tests/fake-gh-deploy/gh
+
+      - name: Pruebas de deploy
+        run: bash scripts/tests/deploy-tests.sh

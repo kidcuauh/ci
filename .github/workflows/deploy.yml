@@ -1,0 +1,295 @@
+name: deploy
+
+# Entrada única de cada repo de app: construye una vez cada imagen, la despliega en los
+# ambientes que no son prod y promueve a prod con un Release vX.Y.Z. Escribe la imagen
+# nueva en infra/ del repo que llama; el cluster lo aplica desde ahí. Documentación:
+# docs/deploy.md. La lógica está en scripts/deploy-*.sh (probada sin red en
+# scripts/tests/deploy-tests.sh). Sin Actions de terceros: solo actions/* fijadas por SHA.
+
+on:
+  workflow_call:
+    inputs:
+      images:
+        description: "Lista YAML de imágenes: name, y opcionalmente context, dockerfile y target (vacío = una imagen con el nombre del repo)"
+        type: string
+        default: ""
+      build-args:
+        description: Una por línea CLAVE=valor, para build-push.yml. Nunca secretos
+        type: string
+        default: ""
+      scan-fail-on:
+        description: Severidad que bloquea el tag (CRITICAL, HIGH o none), para build-push.yml
+        type: string
+        default: CRITICAL
+    secrets:
+      BUILD_SECRETS:
+        description: Líneas id=valor para build-push.yml (opcional)
+        required: false
+      push_token:
+        description: Deploy key (llave SSH privada) o token con permiso de empujar a main, para un main con ruleset (opcional)
+        required: false
+    outputs:
+      changed:
+        description: true si este run escribió un commit en infra/
+        value: ${{ jobs.promote.outputs.changed || jobs.bump.outputs.changed || 'false' }}
+      commit_sha:
+        description: Commit empujado a main (vacío si no hubo cambio)
+        value: ${{ jobs.promote.outputs.commit_sha || jobs.bump.outputs.commit_sha }}
+      previous_digest:
+        description: Una línea "<ambiente>/<app> <digest>" por app escrita, con el digest anterior
+        value: ${{ jobs.promote.outputs.previous_digest || jobs.bump.outputs.previous_digest }}
+      new_digest:
+        description: Una línea "<ambiente>/<app> <digest>" por app escrita, con el digest nuevo
+        value: ${{ jobs.promote.outputs.new_digest || jobs.bump.outputs.new_digest }}
+      version:
+        description: vX.Y.Z promovida a prod (vacío si este run no promovió)
+        value: ${{ jobs.promote.outputs.version }}
+
+permissions: {}
+
+jobs:
+  plan:
+    name: plan
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read # checkout
+    outputs:
+      mode: ${{ steps.plan.outputs.mode }}
+      build: ${{ steps.plan.outputs['build'] }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+      apps: ${{ steps.plan.outputs.apps }}
+      envs: ${{ steps.plan.outputs.envs }}
+      source: ${{ steps.plan.outputs.source }}
+      version: ${{ steps.plan.outputs.version }}
+      kind: ${{ steps.plan.outputs.kind }}
+    steps:
+      # Commit exacto de este workflow. Un contexto vacío haría que checkout use la rama
+      # por defecto de ci sin fijar: se valida antes.
+      - name: Validar el commit de ci
+        env:
+          WF_REPO: ${{ job.workflow_repository }}
+          WF_SHA: ${{ job.workflow_sha }}
+        run: |
+          [[ "$WF_REPO" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ && "$WF_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::no se pudo determinar el commit exacto de este workflow"
+            exit 1
+          }
+
+      - name: Checkout de ci (scripts)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: ci
+          persist-credentials: false
+
+      - name: Checkout del repo que llama
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: repo
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Instalar yq
+        run: bash ci/scripts/install-tools.sh yq
+
+      - name: Plan
+        id: plan
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          OWNER: ${{ github.repository_owner }}
+          IN_IMAGES: ${{ inputs.images }}
+          IN_VERSION: ${{ github.event.inputs.version }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_PRERELEASE: ${{ github.event.release.prerelease }}
+        run: bash ci/scripts/deploy-plan.sh --repo repo
+
+  build:
+    name: build ${{ matrix.name }}
+    needs: plan
+    if: needs.plan.outputs['build'] == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    permissions:
+      contents: read # checkout
+      packages: write # publicar la imagen en GHCR
+    uses: ./.github/workflows/build-push.yml
+    with:
+      image-name: ${{ matrix.name }}
+      context: ${{ matrix.context }}
+      dockerfile: ${{ matrix.dockerfile }}
+      target: ${{ matrix.target }}
+      build-args: ${{ inputs.build-args }}
+      scan-fail-on: ${{ inputs.scan-fail-on }}
+    secrets:
+      BUILD_SECRETS: ${{ secrets.BUILD_SECRETS }}
+
+  # Ambientes que no son prod: un bump con el sha-<12> recién construido.
+  bump:
+    name: bump
+    needs: [plan, build]
+    if: >-
+      !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.mode == 'bump'
+      && needs.build.result == 'success'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    # Sin grupo de concurrency: GitHub conserva un solo job pendiente por grupo y descarta
+    # al anterior aunque sea más nuevo. Aquí el orden lo deciden la guarda de orden y el
+    # reintento del push (docs/deploy.md, «Concurrencia»).
+    permissions:
+      contents: write # commit del bump en main
+      packages: read # leer el digest de sha-<12>
+    outputs:
+      changed: ${{ steps.deploy.outputs.changed }}
+      commit_sha: ${{ steps.deploy.outputs.commit_sha }}
+      previous_digest: ${{ steps.deploy.outputs.previous_digest }}
+      new_digest: ${{ steps.deploy.outputs.new_digest }}
+    steps:
+      - name: Validar el commit de ci
+        env:
+          WF_REPO: ${{ job.workflow_repository }}
+          WF_SHA: ${{ job.workflow_sha }}
+        run: |
+          [[ "$WF_REPO" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ && "$WF_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::no se pudo determinar el commit exacto de este workflow"
+            exit 1
+          }
+
+      - name: Checkout de ci (scripts)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: ci
+          persist-credentials: false
+
+      # La rama (no el commit): el bump se empuja encima de la punta de main.
+      - name: Checkout del repo que llama
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          path: repo
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Instalar herramientas
+        run: bash ci/scripts/install-tools.sh yq kubectl helm flux kubeconform gitleaks
+
+      - name: Entrar al registro
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+        run: printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+
+      - name: Bump
+        id: deploy
+        env:
+          DEPLOY_READ_TOKEN: ${{ github.token }}
+          DEPLOY_PUSH_TOKEN: ${{ secrets.push_token }}
+          SOURCE: ${{ needs.plan.outputs.source }}
+          APPS: ${{ needs.plan.outputs.apps }}
+          ENVS: ${{ needs.plan.outputs.envs }}
+        run: |
+          set -euo pipefail
+          # shellcheck source=/dev/null
+          source ci/scripts/deploy-lib.sh
+          git_auth repo "$GITHUB_REPOSITORY"
+          bash ci/scripts/deploy-nonprod.sh --repo repo --source "$SOURCE" --owner "${GITHUB_REPOSITORY_OWNER,,}" \
+            --apps "$APPS" --envs "$ENVS" --check-infra ci/scripts/check-infra.sh
+
+      - name: Limpiar credenciales
+        if: always()
+        run: |
+          docker logout ghcr.io || true
+          rm -f "${RUNNER_TEMP}/deploy-key" "${RUNNER_TEMP}/deploy-known-hosts"
+
+  # Prod: un Release vX.Y.Z (automático sin dev, el botón, un Release a mano o un hotfix).
+  promote:
+    name: promote
+    needs: [plan, build]
+    if: >-
+      !cancelled() && needs.plan.result == 'success'
+      && (needs.plan.outputs.mode == 'release-auto' || needs.plan.outputs.mode == 'promote')
+      && (needs.plan.outputs['build'] != 'true' || needs.build.result == 'success')
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    # Prod va en serie por repo: cada promoción ve el tag y el overlay que dejó la anterior,
+    # así la numeración sigue el orden del código. Un pendiente nuevo reemplaza al pendiente
+    # anterior (docs/deploy.md, «Concurrencia»).
+    concurrency:
+      group: infra-bump-${{ github.repository }}-prod
+      cancel-in-progress: false
+    permissions:
+      contents: write # tag, Release y commit en main
+      packages: write # retag X.Y.Z de la imagen
+    outputs:
+      changed: ${{ steps.deploy.outputs.changed }}
+      commit_sha: ${{ steps.deploy.outputs.commit_sha }}
+      previous_digest: ${{ steps.deploy.outputs.previous_digest }}
+      new_digest: ${{ steps.deploy.outputs.new_digest }}
+      version: ${{ steps.deploy.outputs.version }}
+    steps:
+      - name: Validar el commit de ci
+        env:
+          WF_REPO: ${{ job.workflow_repository }}
+          WF_SHA: ${{ job.workflow_sha }}
+        run: |
+          [[ "$WF_REPO" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ && "$WF_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::no se pudo determinar el commit exacto de este workflow"
+            exit 1
+          }
+
+      - name: Checkout de ci (scripts)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: ci
+          persist-credentials: false
+
+      - name: Checkout del repo que llama
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: repo
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Instalar herramientas
+        run: bash ci/scripts/install-tools.sh yq kubectl helm flux kubeconform gitleaks
+
+      - name: Entrar al registro
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+        run: printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+
+      - name: Promover
+        id: deploy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOY_READ_TOKEN: ${{ github.token }}
+          DEPLOY_PUSH_TOKEN: ${{ secrets.push_token }}
+          KIND: ${{ needs.plan.outputs.kind }}
+          SOURCE: ${{ needs.plan.outputs.source }}
+          VERSION: ${{ needs.plan.outputs.version }}
+          APPS: ${{ needs.plan.outputs.apps }}
+        run: |
+          set -euo pipefail
+          # shellcheck source=/dev/null
+          source ci/scripts/deploy-lib.sh
+          git_auth repo "$GITHUB_REPOSITORY"
+          bash ci/scripts/deploy-promote.sh --repo repo --slug "$GITHUB_REPOSITORY" --owner "${GITHUB_REPOSITORY_OWNER,,}" \
+            --kind "$KIND" --source "$SOURCE" --version "$VERSION" --apps "$APPS" \
+            --check-infra ci/scripts/check-infra.sh
+
+      - name: Limpiar credenciales
+        if: always()
+        run: |
+          docker logout ghcr.io || true
+          rm -f "${RUNNER_TEMP}/deploy-key" "${RUNNER_TEMP}/deploy-known-hosts"
