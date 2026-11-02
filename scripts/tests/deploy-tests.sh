@@ -950,6 +950,30 @@ else
   echo "omitido: faltan helm, flux, kubeconform o gitleaks en el PATH (en CI están)"
 fi
 
+# --- contrato deploy.yml -> build-push.yml -------------------------------------
+# deploy.yml llama a build-push.yml por su ruta completa (@main), así que actionlint no
+# puede leer el workflow llamado: aquí se comprueban sus entradas y secretos.
+echo "== contrato con build-push"
+dy="$root/.github/workflows/deploy.yml"
+by="$root/.github/workflows/build-push.yml"
+t "contrato: deploy.yml llama a build-push.yml@main de este repo" \
+  test "$(yq e '.jobs.build.uses' "$dy")" = "kidcuauh/ci/.github/workflows/build-push.yml@main"
+bad=0
+for k in $(yq e '.jobs.build.with | keys | .[]' "$dy"); do
+  [[ "$(yq e ".on.workflow_call.inputs | has(\"$k\")" "$by")" == true ]] || bad=1
+done
+t "contrato: cada with de deploy.yml es un input de build-push.yml" test "$bad" -eq 0
+bad=0
+for k in $(yq e '.jobs.build.secrets | keys | .[]' "$dy"); do
+  [[ "$(yq e ".on.workflow_call.secrets | has(\"$k\")" "$by")" == true ]] || bad=1
+done
+t "contrato: cada secreto de deploy.yml es un secreto de build-push.yml" test "$bad" -eq 0
+bad=0
+for k in $(yq e '.on.workflow_call.inputs | to_entries | .[] | select(.value.required == true and (.value | has("default") | not)) | .key' "$by"); do
+  [[ "$(yq e ".jobs.build.with | has(\"$k\")" "$dy")" == true ]] || bad=1
+done
+t "contrato: deploy.yml pasa todo input obligatorio de build-push.yml" test "$bad" -eq 0
+
 echo
 echo "$PASS ok, $FAILED fallan"
 ((FAILED == 0))

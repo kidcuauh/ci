@@ -176,12 +176,14 @@ bash "$root/scripts/check-workflows.sh" "$here/fixtures/workflows/bueno" >/dev/n
 expect_exit "check-workflows: fixture bueno pasa" 0 $?
 for c in tercero tag sha-corto pull-request-target secrets-inherit sin-permissions permissions-write uses-flow uses-comillas uses-espacio secrets-inherit-comillas \
   prt-lista prt-escalar call-permissions-no-vacios write-contents write-id-token write-attestations-flow \
-  prt-lista-sin-indent call-lista-sin-indent write-flow-dos; do
+  prt-lista-sin-indent call-lista-sin-indent write-flow-dos \
+  self-main-otro-archivo self-main-otra-rama self-main-otro-repo self-main-sha \
+  self-main-ci-evil self-main-main-x uses-comentario; do
   bash "$root/scripts/check-workflows.sh" "$here/fixtures/workflows/$c" >/dev/null 2>&1
   expect_exit "check-workflows: falla con $c" 1 $?
 done
 
-for c in prt-solo-en-if call-ok write-packages-ok release-chart-ok; do
+for c in prt-solo-en-if call-ok write-packages-ok release-chart-ok self-main-ok self-main-comentario-ok; do
   bash "$root/scripts/check-workflows.sh" "$here/fixtures/workflows/$c" >/dev/null 2>&1
   expect_exit "check-workflows: fixture $c pasa" 0 $?
 done

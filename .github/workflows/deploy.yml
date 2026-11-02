@@ -118,7 +118,10 @@ jobs:
     permissions:
       contents: read # checkout
       packages: write # publicar la imagen en GHCR
-    uses: ./.github/workflows/build-push.yml
+    # Ruta completa en @main, no ./: la allowlist de la org que llama evalúa una ruta local
+    # anidada como kidcuauh/ci/...@<SHA> y la rechaza; solo admite @main. zizmor se silencia
+    # solo en esta línea: cualquier otro uses sin hash sigue marcado.
+    uses: kidcuauh/ci/.github/workflows/build-push.yml@main # zizmor: ignore[unpinned-uses]
     with:
       image-name: ${{ matrix.name }}
       context: ${{ matrix.context }}
