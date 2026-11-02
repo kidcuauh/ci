@@ -112,7 +112,7 @@ spec:
   url: oci://ghcr.io/kidcuauh/charts/app
   ref:
     # Digest de la versión del chart (lo da la release chart-vX.Y.Z). Subirlo es un PR manual.
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    digest: sha256:05e1ac85102e64c882c152f424f7d11be011187d9973fcaa7dd25ed56e6b35bf
   layerSelector:
     mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
     operation: copy
@@ -234,7 +234,7 @@ spec:
   url: oci://ghcr.io/kidcuauh/charts/app
   ref:
     # Digest de la versión del chart (lo da la release chart-vX.Y.Z). Subirlo es un PR manual.
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    digest: sha256:05e1ac85102e64c882c152f424f7d11be011187d9973fcaa7dd25ed56e6b35bf
   layerSelector:
     mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
     operation: copy
