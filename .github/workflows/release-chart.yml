@@ -1,0 +1,243 @@
+name: release-chart
+
+# Publica el chart app en GHCR como artefacto OCI, lo firma con cosign (keyless) y crea
+# una release inmutable. Documentación: docs/release-chart.md.
+# Disparo: un tag chart-vX.Y.Z[-pre] sobre un commit de main. El nombre de este archivo,
+# el patrón del tag y el issuer son el contrato de los consumidores: no se cambian.
+# Sin Actions de terceros: solo actions/* fijadas por SHA y binarios con sha256.
+
+on:
+  push:
+    tags: ["chart-v*"]
+
+permissions: {}
+
+concurrency:
+  group: release-chart
+  # Una publicación en curso nunca se cancela.
+  cancel-in-progress: false
+
+jobs:
+  verificar:
+    name: verificar
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read # checkout
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout (historia completa)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Instalar herramientas
+        run: bash scripts/install-tools.sh helm yq
+
+      - name: Tag, Chart.yaml y rama main
+        id: version
+        env:
+          TAG: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+
+          re='^chart-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$'
+          [[ "$TAG" =~ $re ]] || fail "el tag no tiene la forma chart-vX.Y.Z[-pre]"
+          version="${TAG#chart-v}"
+
+          chart_version="$(yq '.version' charts/app/Chart.yaml)"
+          [[ "$chart_version" == "$version" ]] ||
+            fail "la versión de charts/app/Chart.yaml no coincide con el tag"
+
+          # El commit del tag debe estar en main (con fetch-depth 0 origin/main está presente).
+          # Es una guarda de conveniencia, no una barrera: un tag corre el workflow de su propio
+          # commit. El control de acceso es el ruleset de tags chart-v* (docs/release-chart.md).
+          git merge-base --is-ancestor "$SHA" origin/main || fail "el commit del tag no está en main"
+
+          echo "version=$version" >>"$GITHUB_OUTPUT"
+
+      - name: Pruebas del chart
+        run: bash scripts/test-chart.sh
+
+  publicar:
+    name: publicar
+    needs: verificar
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # Único job con packages: write e id-token: write.
+    permissions:
+      contents: read # checkout
+      packages: write # helm push a ghcr.io/kidcuauh/charts
+      id-token: write # identidad OIDC para la firma keyless de cosign
+    outputs:
+      version: ${{ steps.push.outputs.version }}
+      digest: ${{ steps.push.outputs.digest }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Instalar herramientas
+        run: bash scripts/install-tools.sh helm cosign yq
+
+      - name: Versión (revalidada) y que no exista en GHCR
+        id: check
+        env:
+          TAG: ${{ github.ref_name }}
+          NEEDS_VERSION: ${{ needs.verificar.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+
+          re='^chart-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$'
+          [[ "$TAG" =~ $re ]] || fail "el tag no tiene la forma chart-vX.Y.Z[-pre]"
+          version="${TAG#chart-v}"
+          [[ "$version" == "$NEEDS_VERSION" ]] || fail "la versión no coincide con la del job verificar"
+
+          # El token va en un archivo de cabeceras (no en los argumentos del proceso).
+          hdr="$RUNNER_TEMP/ghcr-header"
+          (
+            umask 077
+            printf 'Authorization: Bearer %s\n' "$(printf '%s' "$GH_TOKEN" | base64 | tr -d '\n')" >"$hdr"
+          )
+          code="$(curl -sS -o /dev/null -w '%{http_code}' -H "@$hdr" \
+            -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json, application/vnd.docker.distribution.manifest.list.v2+json' \
+            "https://ghcr.io/v2/kidcuauh/charts/app/manifests/${version}")"
+          rm -f "$hdr"
+          # 404 = la versión no existe (o el paquete aún no existe). Cualquier otra respuesta
+          # falla cerrado; si la primera publicación diera 401 o 403, se revisa en el RC (docs).
+          case "$code" in
+            404) ;;
+            200) fail "la versión ${version} ya existe en GHCR: las versiones no se sobrescriben" ;;
+            *) fail "respuesta inesperada de GHCR al buscar la versión (HTTP ${code})" ;;
+          esac
+
+          echo "version=$version" >>"$GITHUB_OUTPUT"
+
+      - name: Empaquetar, publicar y firmar
+        id: push
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+
+          # helm y cosign comparten la misma credencial de registro.
+          export DOCKER_CONFIG="$RUNNER_TEMP/docker"
+          export HELM_REGISTRY_CONFIG="$DOCKER_CONFIG/config.json"
+          mkdir -p "$DOCKER_CONFIG"
+          printf '%s' "$GH_TOKEN" | cosign login ghcr.io -u "$ACTOR" --password-stdin
+
+          pkg="$RUNNER_TEMP/pkg"
+          mkdir -p "$pkg"
+          helm package charts/app --destination "$pkg"
+          [[ -f "$pkg/app-${VERSION}.tgz" ]] || fail "helm package no generó app-${VERSION}.tgz"
+
+          helm push "$pkg/app-${VERSION}.tgz" oci://ghcr.io/kidcuauh/charts 2>&1 | tee "$RUNNER_TEMP/push.log"
+          digest="$(awk '/^Digest:/ { print $2; exit }' "$RUNNER_TEMP/push.log")"
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || fail "no se pudo leer el digest de la salida de helm push"
+
+          ref="ghcr.io/kidcuauh/charts/app@${digest}"
+          # Firma en formato clásico (etiqueta <digest>.sig): es el que verifica el
+          # source-controller de Flux con verify.provider: cosign. El formato bundle, que es el
+          # predeterminado de cosign 3, no está comprobado con Flux (ver docs/release-chart.md).
+          cosign sign --yes --new-bundle-format=false --use-signing-config=false "$ref"
+          cosign verify --new-bundle-format=false \
+            --certificate-identity "https://github.com/kidcuauh/ci/.github/workflows/release-chart.yml@refs/tags/chart-v${VERSION}" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            "$ref" >/dev/null
+
+          {
+            echo "version=$VERSION"
+            echo "digest=$digest"
+          } >>"$GITHUB_OUTPUT"
+          {
+            echo "## chart app ${VERSION}"
+            echo
+            echo "\`${ref}\`"
+          } >>"$GITHUB_STEP_SUMMARY"
+
+  release:
+    name: release
+    needs: publicar
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # Único job con contents: write. Si falla después de publicar, se re-ejecuta solo este job.
+    permissions:
+      contents: write # crear y publicar la release
+    steps:
+      - name: Crear la release (borrador) y publicarla
+        env:
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.publicar.outputs.version }}
+          DIGEST: ${{ needs.publicar.outputs.digest }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+
+          [[ "$TAG" == "chart-v${VERSION}" ]] || fail "el tag no coincide con la versión publicada"
+          [[ "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$ ]] || fail "versión inválida"
+          [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || fail "digest inválido"
+
+          # El tag debe seguir apuntando al commit que se verificó y publicó.
+          tag_type="$(gh api "repos/${REPO}/git/ref/tags/${TAG}" --jq .object.type)"
+          tag_sha="$(gh api "repos/${REPO}/git/ref/tags/${TAG}" --jq .object.sha)"
+          if [[ "$tag_type" == tag ]]; then
+            tag_sha="$(gh api "repos/${REPO}/git/tags/${tag_sha}" --jq .object.sha)"
+          fi
+          [[ "$tag_sha" == "$SHA" ]] || fail "el tag ya no apunta al commit publicado"
+
+          notes="$RUNNER_TEMP/notes.md"
+          cat >"$notes" <<NOTES
+          Chart \`app\` ${VERSION}
+
+          Referencia OCI (por digest):
+
+          \`\`\`
+          oci://ghcr.io/kidcuauh/charts/app@${DIGEST}
+          \`\`\`
+
+          Descargar:
+
+          \`\`\`
+          helm pull oci://ghcr.io/kidcuauh/charts/app@${DIGEST}
+          \`\`\`
+
+          Verificar la firma:
+
+          \`\`\`
+          cosign verify \\
+            --certificate-identity "https://github.com/kidcuauh/ci/.github/workflows/release-chart.yml@refs/tags/chart-v${VERSION}" \\
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \\
+            ghcr.io/kidcuauh/charts/app@${DIGEST}
+          \`\`\`
+          NOTES
+
+          flags=()
+          if [[ "$VERSION" == *-* ]]; then flags+=(--prerelease); fi
+
+          # Idempotente: si un intento anterior dejó el borrador, se completa; si ya está publicada, no hay nada que hacer.
+          # Se busca en la lista (incluye borradores) y no por tag: `gh release view` no los garantiza.
+          state="$(gh api "repos/${REPO}/releases" --paginate --jq '.[] | select(.tag_name == env.TAG) | .draft' | sed -n 1p)"
+          if [[ -n "$state" ]]; then
+            if [[ "$state" == false ]]; then
+              echo "La release $TAG ya está publicada."
+              exit 0
+            fi
+            gh release edit "$TAG" --repo "$REPO" --notes-file "$notes"
+          else
+            gh release create "$TAG" --repo "$REPO" --draft --verify-tag --latest=false --title "chart app ${VERSION}" --notes-file "$notes" ${flags[@]+"${flags[@]}"}
+          fi
+          # Publicar la última: una release publicada es inmutable.
+          gh release edit "$TAG" --repo "$REPO" --draft=false
