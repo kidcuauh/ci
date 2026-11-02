@@ -4,6 +4,14 @@ Entrada única de cada repo de app. Construye **una vez** cada imagen, la despli
 
 `uses: kidcuauh/ci/.github/workflows/deploy.yml@main`. Orquesta [build-push.yml](build-push.md) (hay tres niveles de anidamiento: el caller, `deploy.yml` y `build-push.yml`).
 
+`deploy.yml` llama a `build-push.yml` por su ruta completa en `@main` (`kidcuauh/ci/.github/workflows/build-push.yml@main`), no con `./`. En una prueba real (2026-11-01), la allowlist de Actions de la org que llama evaluó la ruta local anidada como `kidcuauh/ci/.github/workflows/build-push.yml@<SHA>` y la rechazó, porque solo admite `@main`: el run terminó en `startup_failure`. No vuelvas a `./`.
+
+Consecuencias:
+
+- Un pin de emergencia de `deploy.yml` en `@vX.Y.Z` sigue usando el `build-push.yml` de `main`. Un `build-push.yml` malo en `main` se arregla con un revert, no con un pin.
+- Además de sus inputs y outputs, `build-push.yml` tiene un contrato con los scripts de `deploy.yml`: la imagen es `ghcr.io/<owner en minúsculas>/<name>` y el tag es `sha-<12 hex>` del commit construido. Cambiar cualquiera de los dos rompe `deploy.yml`.
+- actionlint no lee un workflow remoto. `scripts/tests/deploy-tests.sh` comprueba que cada `with` y cada secreto que `deploy.yml` le pasa existen en `build-push.yml`, y que van todos sus inputs obligatorios.
+
 ## La regla
 
 1. Todo se integra en `main`. Cada push a `main` que toca algo fuera de `infra/` construye **una vez** cada imagen del repo (`sha-<12>`, escaneada).

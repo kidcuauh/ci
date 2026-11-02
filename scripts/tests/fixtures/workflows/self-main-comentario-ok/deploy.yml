@@ -1,0 +1,9 @@
+name: x
+on:
+  workflow_call:
+permissions: {}
+jobs:
+  j:
+    permissions:
+      contents: read
+    uses: kidcuauh/ci/.github/workflows/build-push.yml@main # zizmor: ignore[unpinned-uses]

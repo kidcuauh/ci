@@ -1,8 +1,7 @@
-# El self-test y deploy.yml llaman a build-push.yml, del propio repo, con la ruta local
-# clásica (./), que actionlint y scripts/check-workflows.sh entienden. Solo se silencia
-# esa auditoría.
+# El self-test llama a build-push.yml, del propio repo, con la ruta local clásica (./),
+# que actionlint y scripts/check-workflows.sh entienden. Solo se silencia esa auditoría.
+# (deploy.yml usa la ruta completa en @main y silencia unpinned-uses en esa sola línea.)
 rules:
   self-repository:
     ignore:
       - selftest.yml
-      - deploy.yml

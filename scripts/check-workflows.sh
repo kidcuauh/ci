@@ -13,6 +13,14 @@ set -euo pipefail
 # "release.yml:contents"). Todo lo demás con write se rechaza.
 WRITE_ALLOWED=("packages" "release-chart.yml:contents" "release-chart.yml:id-token" "deploy.yml:contents")
 
+# Archivos que pueden llamar a otro workflow de este repo por su ruta completa en @main
+# (kidcuauh/ci/.github/workflows/<archivo>@main). La allowlist de las orgs que llaman
+# evalúa una ruta local anidada (./) como @<SHA> y solo admite @main.
+SELF_MAIN_ALLOWED=("deploy.yml")
+SELF_MAIN_RE='^kidcuauh/ci/\.github/workflows/[A-Za-z0-9._-]+\.ya?ml@main$'
+# Clave uses (con o sin comillas) y su valor; el grupo 2 es el valor.
+RE_USES='(^|[[:space:]{,-])["'"'"']?uses["'"'"']?[[:space:]]*:[[:space:]]*(.*)$'
+
 # Extrae el bloque `on:` de la raíz (número de línea:texto sin comentarios).
 IFS= read -r -d '' AWK_ON <<'AWK' || true
 /^["']?on["']?[[:space:]]*:/ { inon = 1; l = $0; sub(/^[^:]*:/, "", l); sub(/#.*/, "", l); print NR ":" l; next }
@@ -47,11 +55,18 @@ for f in "${files[@]}" ${extra[@]+"${extra[@]}"}; do
   while IFS= read -r line; do
     n="${line%%:*}"
     v="${line#*:}"
-    v="$(printf '%s' "$v" | sed -E 's/^.*["'"'"']?uses["'"'"']?[[:space:]]*:[[:space:]]*//; s/[[:space:]]+#.*$//; s/[[:space:]]*[},].*$//; s/[[:space:]]+$//; s/^["'"'"']//; s/["'"'"']$//')"
+    # El primer uses: de la línea, no el último: un comentario con otro uses: no lo tapa.
+    if [[ "$v" =~ $RE_USES ]]; then v="${BASH_REMATCH[2]}"; fi
+    v="$(printf '%s' "$v" | sed -E 's/[[:space:]]+#.*$//; s/[[:space:]]*[},].*$//; s/[[:space:]]+$//; s/^["'"'"']//; s/["'"'"']$//')"
     if [[ "$v" =~ ^\./ ]] || [[ "$v" =~ ^actions/[A-Za-z0-9._-]+(/[A-Za-z0-9._/-]+)?@[0-9a-f]{40}$ ]]; then
       continue
     fi
-    err "$f:$n: uses '$v' no es local ni actions/* fijado por SHA de 40 caracteres"
+    if [[ "$v" =~ $SELF_MAIN_RE ]]; then
+      for a in "${SELF_MAIN_ALLOWED[@]}"; do
+        if [[ "$(basename "$f")" == "$a" ]]; then continue 2; fi
+      done
+    fi
+    err "$f:$n: uses '$v' no es local, ni actions/* fijado por SHA de 40 caracteres, ni kidcuauh/ci/.github/workflows/<archivo>@main en un archivo de SELF_MAIN_ALLOWED"
   done < <(grep -nE '(^|[[:space:]{,-])["'"'"']?uses["'"'"']?[[:space:]]*:' "$f" || true)
 
   # 2. nada de pull_request_target como disparador (clave bajo `on:`, lista o escalar);
