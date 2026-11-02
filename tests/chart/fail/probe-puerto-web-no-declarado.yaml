@@ -1,0 +1,7 @@
+# espera: no está declarado
+web:
+  probes:
+    readiness:
+      httpGet:
+        path: /healthz
+        port: nope

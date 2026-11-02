@@ -1,0 +1,8 @@
+# Recreate con 1 réplica (sin rollingUpdate) y terminationGracePeriodSeconds configurable.
+# afirma: .[] | select(.kind == "Deployment") | (.spec.strategy.type == "Recreate" and (.spec.strategy | has("rollingUpdate") | not))
+# afirma: .[] | select(.kind == "Deployment") | .spec.template.spec.terminationGracePeriodSeconds == 120
+# afirma: .[] | select(.kind == "Deployment") | .spec.replicas == 1
+terminationGracePeriodSeconds: 120
+web:
+  strategy: Recreate
+  replicas: 1

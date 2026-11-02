@@ -1,0 +1,36 @@
+name: e2e
+
+# Prueba en kind: Flux con el endurecimiento multi-tenant, un tenant con su Role y
+# examples/minimal (overlay dev) aplicado con el chart por digest y firma verificada,
+# más dos negativos (ClusterRole y base remota). La lógica está en tests/e2e/run.sh.
+# Sin Actions de terceros ni secretos: solo actions/* fijadas por SHA.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  e2e:
+    name: e2e
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read # checkout
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Herramientas
+        run: bash scripts/install-tools.sh kind kubectl flux yq
+
+      - name: e2e en kind
+        env:
+          E2E_REF: ${{ github.ref }}
+          E2E_REPO: ${{ github.repository }}
+        run: bash tests/e2e/run.sh

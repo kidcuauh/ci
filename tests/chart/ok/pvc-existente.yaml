@@ -1,0 +1,11 @@
+# Monta un PVC que ya existe en el web, con subPath; no se crea ningún PVC.
+# afirma: [.[] | select(.kind == "PersistentVolumeClaim")] | length == 0
+# afirma: .[] | select(.kind == "Deployment") | .spec.template.spec.volumes[] | select(.name == "data") | .persistentVolumeClaim.claimName == "mi-datos"
+# afirma: .[] | select(.kind == "Deployment") | .spec.template.spec.containers[0].volumeMounts[] | select(.name == "data") | (.mountPath == "/var/lib/datos" and .subPath == "app")
+persistence:
+  enabled: true
+  existingClaim: mi-datos
+  mountPath: /var/lib/datos
+  subPath: app
+web:
+  strategy: Recreate

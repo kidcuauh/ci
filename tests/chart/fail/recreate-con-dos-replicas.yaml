@@ -1,0 +1,4 @@
+# espera: maximum: got 2, want 1
+web:
+  strategy: Recreate
+  replicas: 2

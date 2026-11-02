@@ -1,0 +1,26 @@
+{{- if .Values.secrets.infisical.enabled }}
+apiVersion: secrets.infisical.com/v1beta1
+kind: InfisicalStaticSecret
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "app.labels" (dict "ctx" . "component" "secrets") | nindent 4 }}
+spec:
+  sources:
+    {{- range .Values.secrets.infisical.sources }}
+    - projectSlug: {{ .projectSlug }}
+      environmentSlug: {{ .environmentSlug }}
+      secretPath: {{ default "/" .secretPath | quote }}
+      recursive: {{ default false .recursive }}
+    {{- end }}
+  infisicalAuthRef:
+    name: infisical-auth
+    namespace: {{ .Release.Namespace }}
+  syncOptions:
+    refreshInterval: {{ .Values.secrets.infisical.refreshInterval }}
+  targets:
+    - kind: Secret
+      name: {{ include "app.secretsName" . }}
+      namespace: {{ .Release.Namespace }}
+      creationPolicy: Owner
+{{- end }}

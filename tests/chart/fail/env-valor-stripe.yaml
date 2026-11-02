@@ -1,0 +1,4 @@
+# espera: /env/0/value
+env:
+  - name: PAYMENT_ID
+    value: "@@STRIPE@@"

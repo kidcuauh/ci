@@ -1,0 +1,15 @@
+# Release sin Ingress y con puertos extra: contenedor y Service con targetPort por nombre.
+# afirma: [.[] | select(.kind == "Ingress")] | length == 0
+# afirma: .[] | select(.kind == "Service") | .spec.ports | length == 3
+# afirma: .[] | select(.kind == "Service") | (.spec.ports[1].name == "metrics" and .spec.ports[1].targetPort == "metrics" and .spec.ports[1].port == 9090)
+# afirma: .[] | select(.kind == "Service") | .spec.ports[2].protocol == "UDP"
+# afirma: .[] | select(.kind == "Deployment") | .spec.template.spec.containers[0].ports | length == 3
+web:
+  ingress:
+    enabled: false
+  extraPorts:
+    - name: metrics
+      port: 9090
+    - name: syslog
+      port: 5514
+      protocol: UDP

@@ -1,0 +1,5 @@
+# espera: additional properties 'size' not allowed
+persistence:
+  enabled: true
+  existingClaim: mi-datos
+  size: 10Gi

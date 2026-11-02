@@ -1,0 +1,5 @@
+# espera: ya está en uso
+web:
+  extraPorts:
+    - name: metrics
+      port: 8080

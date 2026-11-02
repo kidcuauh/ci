@@ -1,0 +1,3 @@
+# espera: /securityContext/fsGroup
+securityContext:
+  fsGroup: 0

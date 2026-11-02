@@ -1,0 +1,15 @@
+# espera: web.ingress.enabled necesita web.enabled
+web:
+  enabled: false
+  probes: null
+  resources: null
+  ingress:
+    enabled: true
+    hosts:
+      - host: mi-app.example.com
+workers:
+  - name: cola
+    command: [node, worker.js]
+    resources:
+      requests: {cpu: 10m, memory: 32Mi}
+      limits: {memory: 64Mi}

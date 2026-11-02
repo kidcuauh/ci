@@ -1,0 +1,3 @@
+# espera: /writablePaths/0
+writablePaths:
+  - /tmp/../etc

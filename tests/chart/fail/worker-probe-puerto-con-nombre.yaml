@@ -1,0 +1,12 @@
+# espera: los workers no declaran puertos
+workers:
+  - name: cola
+    command: [node, worker.js]
+    probes:
+      liveness:
+        httpGet:
+          path: /healthz
+          port: http
+    resources:
+      requests: {cpu: 10m, memory: 32Mi}
+      limits: {memory: 64Mi}

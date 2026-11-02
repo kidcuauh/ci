@@ -1,0 +1,8 @@
+# espera: additional properties 'projectId' not allowed
+secrets:
+  infisical:
+    enabled: true
+    sources:
+      - projectSlug: mi-proyecto
+        projectId: 0
+        environmentSlug: dev

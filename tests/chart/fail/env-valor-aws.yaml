@@ -1,0 +1,4 @@
+# espera: /env/0/value
+env:
+  - name: CLOUD_ID
+    value: "@@AWS@@"

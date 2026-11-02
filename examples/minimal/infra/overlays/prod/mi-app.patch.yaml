@@ -1,0 +1,16 @@
+# image.tag y image.digest los reescribe tu proceso de despliegue en cada release; las claves deben existir.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: mi-app
+spec:
+  values:
+    image:
+      tag: "1.0.0"
+      digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    priorityClassName: tenant-prod
+    web:
+      replicas: 2
+      ingress:
+        hosts:
+          - host: mi-app.example.com

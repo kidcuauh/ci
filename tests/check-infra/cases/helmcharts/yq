@@ -1,0 +1,1 @@
+infra/overlays/prod/kustomization.yaml .helmCharts = [{"name": "x", "repo": "https://example.com/charts"}]

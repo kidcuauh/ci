@@ -1,0 +1,5 @@
+# espera: repetido
+files:
+  configMaps:
+    - name: mi-config
+      mountPath: /tmp

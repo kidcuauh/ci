@@ -1,0 +1,73 @@
+name: check-infra
+
+# Verifica el infra/ de un repo que consume el chart "app": sin cluster ni secretos.
+# Documentación: docs/check-infra.md. La lógica vive en scripts/check-infra.sh.
+
+on:
+  workflow_call:
+    inputs:
+      path:
+        description: Directorio del repo que contiene infra/ (relativo a la raíz del repo)
+        type: string
+        default: .
+      kubernetes-version:
+        description: Versión de Kubernetes de los esquemas (X.Y.Z)
+        type: string
+        default: 1.36.5
+
+permissions: {}
+
+jobs:
+  check-infra:
+    name: check-infra
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read # checkout
+    steps:
+      - name: Checkout del repo que llama
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: caller
+          persist-credentials: false
+
+      # Commit exacto de este workflow. Un contexto vacío haría que checkout use la rama
+      # por defecto de ci sin fijar: se valida antes.
+      - name: Validar el commit de ci
+        env:
+          WF_REPO: ${{ job.workflow_repository }}
+          WF_SHA: ${{ job.workflow_sha }}
+        run: |
+          [[ "$WF_REPO" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ && "$WF_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::no se pudo determinar el commit exacto de este workflow"
+            exit 1
+          }
+
+      - name: Checkout de ci (script y esquemas)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: ci
+          persist-credentials: false
+
+      - name: Validar inputs
+        env:
+          IN_PATH: ${{ inputs.path }}
+          IN_KVER: ${{ inputs.kubernetes-version }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+          [[ "$IN_PATH" =~ ^[A-Za-z0-9._/-]+$ && "$IN_PATH" != /* && "$IN_PATH" != *..* ]] ||
+            fail "path inválido: debe ser relativo, sin '..'"
+          [[ -d "caller/$IN_PATH" ]] || fail "path '$IN_PATH' no existe en el repo"
+          [[ "$IN_KVER" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "kubernetes-version inválida: debe ser X.Y.Z"
+
+      - name: Instalar herramientas
+        run: bash ci/scripts/install-tools.sh helm flux kubeconform gitleaks yq
+
+      - name: Verificar infra/
+        env:
+          IN_PATH: ${{ inputs.path }}
+          IN_KVER: ${{ inputs.kubernetes-version }}
+        run: bash ci/scripts/check-infra.sh --kubernetes-version "$IN_KVER" "caller/$IN_PATH"

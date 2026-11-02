@@ -1,0 +1,32 @@
+{{- range $c := .Values.cronJobs }}
+{{- $comp := dict "ctx" $ "component" (printf "cron-%s" $c.name) }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ printf "%s-%s" $.Release.Name $c.name }}
+  labels:
+    {{- include "app.labels" $comp | nindent 4 }}
+spec:
+  schedule: {{ $c.schedule | quote }}
+  timeZone: {{ default "Etc/UTC" $c.timeZone | quote }}
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: {{ int64 (default 300 $c.startingDeadlineSeconds) }}
+  successfulJobsHistoryLimit: {{ if hasKey $c "successfulJobsHistoryLimit" }}{{ $c.successfulJobsHistoryLimit }}{{ else }}1{{ end }}
+  failedJobsHistoryLimit: {{ if hasKey $c "failedJobsHistoryLimit" }}{{ $c.failedJobsHistoryLimit }}{{ else }}1{{ end }}
+  suspend: {{ default false $c.suspend }}
+  jobTemplate:
+    metadata:
+      labels:
+        {{- include "app.labels" $comp | nindent 8 }}
+    spec:
+      backoffLimit: {{ if hasKey $c "backoffLimit" }}{{ $c.backoffLimit }}{{ else }}0{{ end }}
+      activeDeadlineSeconds: {{ int64 (default 3600 $c.activeDeadlineSeconds) }}
+      ttlSecondsAfterFinished: {{ if hasKey $c "ttlSecondsAfterFinished" }}{{ int64 $c.ttlSecondsAfterFinished }}{{ else }}86400{{ end }}
+      template:
+        metadata:
+          labels:
+            {{- include "app.podLabels" $comp | nindent 12 }}
+        spec:
+          {{- include "app.podSpec" (dict "ctx" $ "component" (printf "cron-%s" $c.name) "command" $c.command "args" $c.args "resources" $c.resources "env" $c.env "restartPolicy" "Never") | nindent 10 }}
+{{- end }}

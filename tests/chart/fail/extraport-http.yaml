@@ -1,0 +1,5 @@
+# espera: /web/extraPorts/0/name
+web:
+  extraPorts:
+    - name: http
+      port: 9090

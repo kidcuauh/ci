@@ -1,0 +1,31 @@
+# Flux con el endurecimiento multi-tenant oficial. run.sh copia este archivo junto a la
+# salida de `flux install --export` (gotk-components.yaml) y lo construye con kubectl.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - gotk-components.yaml
+patches:
+  # Sin referencias entre namespaces
+  - target:
+      kind: Deployment
+      name: "(kustomize-controller|helm-controller)"
+    patch: |
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: --no-cross-namespace-refs=true
+  # Sin bases remotas de kustomize
+  - target:
+      kind: Deployment
+      name: kustomize-controller
+    patch: |
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: --no-remote-bases=true
+  # Sin cuenta de servicio explícita, se usa la default (sin permisos)
+  - target:
+      kind: Deployment
+      name: "(kustomize-controller|helm-controller)"
+    patch: |
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: --default-service-account=default

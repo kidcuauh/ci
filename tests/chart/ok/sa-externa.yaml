@@ -1,0 +1,6 @@
+# serviceAccount.create false con una ServiceAccount existente (alloy): no se crea ninguna y el pod la usa.
+# afirma: [.[] | select(.kind == "ServiceAccount")] | length == 0
+# afirma: .[] | select(.kind == "Deployment") | .spec.template.spec.serviceAccountName == "alloy"
+serviceAccount:
+  create: false
+  name: alloy

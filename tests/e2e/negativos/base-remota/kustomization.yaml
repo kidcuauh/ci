@@ -1,0 +1,7 @@
+# Base remota de kustomize: kustomize-controller con --no-remote-bases debe negarse a
+# construirla. El sufijo evita que sus nombres choquen con los de la prueba positiva.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+nameSuffix: -remota
+resources:
+  - https://github.com/kidcuauh/ci//examples/solo-prod/infra/base/mi-app?ref=main

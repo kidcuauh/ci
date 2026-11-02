@@ -1,0 +1,10 @@
+# writablePaths como emptyDir con sizeLimit: /tmp y directorios XDG; el filesystem sigue de solo lectura.
+# afirma: .[] | select(.kind == "Deployment") | [.spec.template.spec.volumes[] | select(.emptyDir) | .name] | length == 3
+# afirma: .[] | select(.kind == "Deployment") | .spec.template.spec.containers[0].volumeMounts[2].mountPath == "/app/.config"
+# afirma: .[] | select(.kind == "Deployment") | .spec.template.spec.volumes[0].emptyDir.sizeLimit == "64Mi"
+# afirma: .[] | select(.kind == "Deployment") | .spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem == true
+emptyDirSizeLimit: 64Mi
+writablePaths:
+  - /tmp
+  - /app/.cache
+  - /app/.config

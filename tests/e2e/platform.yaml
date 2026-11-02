@@ -1,0 +1,44 @@
+# Lo que la plataforma deja listo para un tenant: namespace con Pod Security restricted,
+# clases de prioridad y la cuenta que reconcilia sus manifiestos. El ClusterRole
+# tenant-reconciler sale de tests/fixtures/tenant-reconciler-role.yaml.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mi-equipo-dev
+  labels:
+    tenant: mi-equipo
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: tenant-prod
+value: 1000
+globalDefault: true
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: tenant-dev
+value: 100
+preemptionPolicy: Never
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tenant-reconciler
+  namespace: mi-equipo-dev
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tenant-reconciler
+  namespace: mi-equipo-dev
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: tenant-reconciler
+subjects:
+  - kind: ServiceAccount
+    name: tenant-reconciler
+    namespace: mi-equipo-dev

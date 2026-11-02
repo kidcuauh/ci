@@ -1,0 +1,8 @@
+# espera: /secrets/infisical/refreshInterval
+secrets:
+  infisical:
+    enabled: true
+    refreshInterval: 1m
+    sources:
+      - projectSlug: mi-proyecto
+        environmentSlug: dev

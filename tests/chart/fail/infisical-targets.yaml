@@ -1,0 +1,8 @@
+# espera: additional properties 'targets' not allowed
+secrets:
+  infisical:
+    enabled: true
+    targets: []
+    sources:
+      - projectSlug: mi-proyecto
+        environmentSlug: dev

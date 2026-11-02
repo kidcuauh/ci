@@ -1,0 +1,3 @@
+# espera: additional properties 'hostNetwork' not allowed
+web:
+  hostNetwork: true

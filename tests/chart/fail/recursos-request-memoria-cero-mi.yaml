@@ -1,0 +1,5 @@
+# espera: /web/resources/requests/memory
+web:
+  resources:
+    requests: {cpu: 50m, memory: "0Mi"}
+    limits: {memory: 256Mi}

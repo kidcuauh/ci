@@ -1,0 +1,7 @@
+# placement.zone con nodeAffinity requerida y whenUnsatisfiable configurable; el selector del spread es el fijo.
+# afirma: .[] | select(.kind == "Deployment") | .spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values[0] == "zona-b"
+# afirma: .[] | select(.kind == "Deployment") | (.spec.template.spec.topologySpreadConstraints[0].whenUnsatisfiable == "DoNotSchedule" and .spec.template.spec.topologySpreadConstraints[0].topologyKey == "kubernetes.io/hostname" and .spec.template.spec.topologySpreadConstraints[0].matchLabelKeys[0] == "pod-template-hash")
+# afirma: .[] | select(.kind == "Deployment") | (.spec.template.spec.topologySpreadConstraints[0].labelSelector.matchLabels | to_yaml) == (.spec.selector.matchLabels | to_yaml)
+placement:
+  zone: zona-b
+  whenUnsatisfiable: DoNotSchedule

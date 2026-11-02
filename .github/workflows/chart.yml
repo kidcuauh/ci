@@ -1,0 +1,95 @@
+name: chart
+
+# Pruebas del chart app, de check-infra y del contenido público. Sin filtros de ramas ni
+# paths en pull_request: los checks obligatorios "chart" y "contenido" deben reportar
+# siempre ("check-infra" es informativo). "edited" vuelve a revisar el título y el cuerpo
+# del PR, que forman el mensaje del squash. Nunca usar el evento pull_request_target en
+# este repo.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: chart-${{ github.ref }}
+  # Los runs de main no se cancelan.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  chart:
+    name: chart
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read # checkout
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Instalar herramientas
+        run: bash scripts/install-tools.sh helm yq
+
+      - name: Pruebas del chart
+        run: bash scripts/test-chart.sh
+
+  check-infra:
+    name: check-infra
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read # checkout
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Instalar herramientas
+        run: bash scripts/install-tools.sh helm flux kubeconform gitleaks yq
+
+      - name: Pruebas de check-infra
+        run: bash scripts/test-check-infra.sh
+
+  contenido:
+    name: contenido
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read # checkout
+    steps:
+      - name: Checkout (historia completa para revisar los commits del PR)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Pruebas de la guardia
+        run: bash scripts/tests/public-content-tests.sh
+
+      - name: Contenido público (árbol, título y cuerpo del PR, commits)
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          args=(--root .)
+          if [[ "$EVENT_NAME" == pull_request ]]; then
+            [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ && "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+              echo "::error::no se pudo determinar el rango de commits del PR"
+              exit 1
+            }
+            args+=(--text-env PR_TITLE --commits "${BASE_SHA}..${HEAD_SHA}")
+            # El cuerpo de los PR de Dependabot enlaza el perfil de cada contribuidor de la
+            # Action actualizada: se omite solo ese cuerpo; árbol, título y commits se revisan.
+            if [[ "$PR_AUTHOR" != "dependabot[bot]" ]]; then args+=(--text-env PR_BODY); fi
+          fi
+          python3 scripts/check-public-content.py "${args[@]}"

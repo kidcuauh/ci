@@ -1,0 +1,7 @@
+# espera: repite el nombre de puerto
+web:
+  extraPorts:
+    - name: metrics
+      port: 9090
+    - name: metrics
+      port: 9091

@@ -1,0 +1,21 @@
+# Una probe del web puede apuntar a un extraPort por nombre.
+# afirma: .[] | select(.kind == "Deployment") | .spec.template.spec.containers[0].livenessProbe.tcpSocket.port == "metrics"
+# base: ninguna
+image:
+  repository: ghcr.io/mi-org/mi-app
+  tag: "1.2.3"
+priorityClassName: tenant-dev
+web:
+  extraPorts:
+    - name: metrics
+      port: 9090
+  probes:
+    readiness:
+      httpGet:
+        path: /healthz
+    liveness:
+      tcpSocket:
+        port: metrics
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {memory: 256Mi}

@@ -1,0 +1,1 @@
+infra/base/mi-app/ocirepository.yaml .spec.verify.matchOIDCIdentity[0].subject = "^https://github\\.com/mi-org/mi-repo/.*$"

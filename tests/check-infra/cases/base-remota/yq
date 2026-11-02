@@ -1,0 +1,1 @@
+infra/base/mi-app/kustomization.yaml .resources += ["https://example.com/mi-org/mi-repo//infra?ref=main"]

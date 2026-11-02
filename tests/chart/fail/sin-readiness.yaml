@@ -1,0 +1,4 @@
+# espera: missing property 'readiness'
+web:
+  probes:
+    readiness: null

@@ -1,0 +1,5 @@
+# espera: /files/configMaps/0/mountPath
+files:
+  configMaps:
+    - name: mi-config
+      mountPath: etc/mi-app

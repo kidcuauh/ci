@@ -1,0 +1,4 @@
+# espera: /migrations
+migrations:
+  enabled: true
+  command: [node, migrate.js]

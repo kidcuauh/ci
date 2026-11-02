@@ -1,0 +1,9 @@
+# espera: de más de 52 caracteres
+# release: abcdefghijklmnopqrstuvwxyzabcdefghijk
+cronJobs:
+  - name: limpieza-de-la-noche
+    schedule: "0 3 * * *"
+    command: [node, limpiar.js]
+    resources:
+      requests: {cpu: 10m, memory: 32Mi}
+      limits: {memory: 64Mi}

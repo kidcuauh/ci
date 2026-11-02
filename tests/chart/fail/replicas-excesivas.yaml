@@ -1,0 +1,3 @@
+# espera: /web/replicas
+web:
+  replicas: 21

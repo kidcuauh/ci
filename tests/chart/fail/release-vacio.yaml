@@ -1,0 +1,5 @@
+# espera: no renderiza nada
+web:
+  enabled: false
+  probes: null
+  resources: null

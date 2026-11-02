@@ -1,0 +1,16 @@
+# Esta carpeta es la que activa dev: cada build de main llega aquí (sha-<12>).
+# image.tag y image.digest los reescribe tu proceso de despliegue; las claves deben existir.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: mi-app
+spec:
+  values:
+    image:
+      tag: "sha-0123456789ab"
+      digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    priorityClassName: tenant-dev
+    web:
+      ingress:
+        hosts:
+          - host: mi-app-dev.example.com

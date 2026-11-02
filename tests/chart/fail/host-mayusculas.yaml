@@ -1,0 +1,6 @@
+# espera: /web/ingress/hosts/0/host
+web:
+  ingress:
+    enabled: true
+    hosts:
+      - host: Mi-App.example.com

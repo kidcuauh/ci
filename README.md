@@ -18,6 +18,9 @@ Workflows reutilizables de GitHub Actions para los proyectos de kidcuauh. Los ll
 - `build-push.yml`: construye, escanea y publica una imagen en GHCR. Ver [docs/build-push.md](docs/build-push.md).
 - `cleanup-images.yml`: retención de versiones de imágenes. Ver [docs/cleanup-images.md](docs/cleanup-images.md).
 - `selftest.yml`: prueba `build-push.yml` con `push: false` sobre imágenes de `tests/fixtures/`. Dos de sus jobs fallan a propósito (`imagen-cve`, `imagen-secreto`) y dejan el run en rojo: el check que cuenta es `resultado`.
+- `check-infra.yml`: verifica el `infra/` de un repo que usa el chart `app`, sin cluster ni secretos. Ver [docs/check-infra.md](docs/check-infra.md).
+- `chart.yml`: pruebas del chart `app` (`charts/app`), de check-infra y del contenido público del repo (jobs `chart`, `check-infra` y `contenido`). Ver [docs/chart-app.md](docs/chart-app.md).
+- `e2e.yml`: prueba en kind del chart publicado con Flux en modo multi-tenant. La lógica está en `tests/e2e/run.sh`.
 
 ## Compatibilidad hacia atrás
 

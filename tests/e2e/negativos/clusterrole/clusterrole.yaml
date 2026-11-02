@@ -1,0 +1,9 @@
+# Un tenant no puede crear objetos de alcance de cluster: debe ser rechazado.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: mi-equipo-escape
+rules:
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["*"]
