@@ -32,7 +32,9 @@
         "do_not_enforce_on_create": false,
         "required_status_checks": [
           { "context": "lint", "integration_id": 15368 },
-          { "context": "resultado", "integration_id": 15368 }
+          { "context": "resultado", "integration_id": 15368 },
+          { "context": "chart", "integration_id": 15368 },
+          { "context": "contenido", "integration_id": 15368 }
         ]
       }
     }

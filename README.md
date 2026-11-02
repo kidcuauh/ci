@@ -37,7 +37,7 @@ Es un riesgo aceptado a cambio de no mantener pines en cada caller:
 ## Protecciones
 
 - Acceso solo del dueño: sin colaboradores, invitaciones ni deploy keys.
-- Rulesets `main` (rama) y `tags-v` (tags `v*`), sin bypass. En `main`: PR obligatorio (0 aprobaciones, solo squash), checks `lint` y `resultado` (del self-test) con la rama al día, commits firmados, historial lineal, sin force-push ni borrado.
+- Rulesets `main` (rama) y `tags-v` (tags `v*` y `chart-v*`), sin bypass. En `main`: PR obligatorio (0 aprobaciones, solo squash), checks `lint`, `resultado` (del self-test), `chart` y `contenido` (de `chart.yml`) con la rama al día, commits firmados, historial lineal, sin force-push ni borrado.
 - Releases inmutables.
 - `GITHUB_TOKEN` de solo lectura; Actions no aprueba PR.
 - Actions solo de GitHub y fijadas por SHA; aprobación de workflows de forks para todos los externos.
@@ -58,7 +58,7 @@ Los cuerpos de los rulesets están en `.github/rulesets/`.
   1. Fusionar el workflow por PR y dejar que corra al menos una vez.
   2. Leer el nombre real: `gh api repos/kidcuauh/ci/commits/<sha>/check-runs --jq '.check_runs[].name'`. Si el job llama a un workflow reutilizable, el contexto es `job-del-caller / job-reutilizable`; si no, solo el nombre del job.
   3. Solo entonces editar `.github/rulesets/main.json` (con `integration_id` 15368), correr `scripts/apply-protections.sh --apply`, actualizar `EXPECTED_CHECKS` en `scripts/verify-protections.sh` y correr `scripts/verify-protections.sh`.
-- **Releases:** siempre como borrador y luego publicar: `gh release create vX.Y.Z --draft` y `gh release edit vX.Y.Z --draft=false`. Con releases inmutables el tag no se mueve ni se reutiliza; no existe un `v1` flotante. Comprobar con `gh release verify vX.Y.Z`. No crear tags `v*` de prueba: `tags-v` impide borrarlos.
+- **Releases:** siempre como borrador y luego publicar: `gh release create vX.Y.Z --draft` y `gh release edit vX.Y.Z --draft=false`. Con releases inmutables el tag no se mueve ni se reutiliza; no existe un `v1` flotante. Comprobar con `gh release verify vX.Y.Z`. No crear tags `v*` ni `chart-v*` de prueba: `tags-v` impide borrarlos.
   - **Crear un tag `v*` no tiene regla:** puede apuntar a un commit que nunca pasó por PR. Antes de fijar un pin o publicar, comprobar `git merge-base --is-ancestor vX.Y.Z origin/main`.
   - **Si publicar se rechaza** (la regla `update` de `tags-v` no está probada contra la creación del tag al publicar): desactivar `tags-v` con break-glass, quitar `update` de `.github/rulesets/tags-v.json`, de `TAGS_RULE_TYPES` en `scripts/verify-protections.sh` y de la prueba de `scripts/tests/run.sh`, y volver a aplicar y verificar.
 - **Rollback:** PR de revert del merge malo.
