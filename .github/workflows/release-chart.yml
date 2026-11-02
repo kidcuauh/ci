@@ -20,7 +20,7 @@ concurrency:
 jobs:
   verificar:
     name: verificar
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     permissions:
       contents: read # checkout
@@ -66,7 +66,7 @@ jobs:
   publicar:
     name: publicar
     needs: verificar
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     # Único job con packages: write e id-token: write.
     permissions:
@@ -168,7 +168,7 @@ jobs:
   release:
     name: release
     needs: publicar
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     # Único job con contents: write. Si falla después de publicar, se re-ejecuta solo este job.
     permissions:
