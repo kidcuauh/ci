@@ -25,6 +25,9 @@ fail() {
 # Validación de entradas (llegan por entorno)
 [[ "$ref" =~ ^refs/(heads|tags|pull)/[A-Za-z0-9._/-]+$ ]] || fail "E2E_REF inválido"
 [[ "$repo" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || fail "E2E_REPO inválido"
+# En un PR, Flux no resuelve el ref sintético refs/pull/N/merge ("object not found"):
+# se prueba la cabeza del PR, refs/pull/N/head.
+if [[ "$ref" =~ ^refs/pull/([0-9]+)/merge$ ]]; then ref="refs/pull/${BASH_REMATCH[1]}/head"; fi
 
 chart_digest="$(yq '.spec.ref.digest' "$root/examples/minimal/infra/base/mi-app/ocirepository.yaml")"
 if [[ "$chart_digest" =~ ^sha256:0+$ ]]; then
