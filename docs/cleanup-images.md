@@ -57,3 +57,10 @@ jobs:
       image-names: mi-app-api,mi-app-web
       dry-run: true # cambiar a false tras revisar un dry-run
 ```
+
+Si el caller pasa los umbrales desde inputs de `workflow_dispatch`, conviértelos con `fromJSON`: esos inputs llegan como texto y `workflow_call` espera números («Unexpected value '20'»).
+
+```yaml
+    with:
+      keep-last: ${{ fromJSON(inputs.keep-last) }}
+```
