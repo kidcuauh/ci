@@ -25,6 +25,9 @@ fail() {
 # Validación de entradas (llegan por entorno)
 [[ "$ref" =~ ^refs/(heads|tags|pull)/[A-Za-z0-9._/-]+$ ]] || fail "E2E_REF inválido"
 [[ "$repo" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || fail "E2E_REPO inválido"
+# En un PR, Flux no resuelve el ref sintético refs/pull/N/merge ("object not found"):
+# se prueba la cabeza del PR, refs/pull/N/head.
+if [[ "$ref" =~ ^refs/pull/([0-9]+)/merge$ ]]; then ref="refs/pull/${BASH_REMATCH[1]}/head"; fi
 
 chart_digest="$(yq '.spec.ref.digest' "$root/examples/minimal/infra/base/mi-app/ocirepository.yaml")"
 if [[ "$chart_digest" =~ ^sha256:0+$ ]]; then
@@ -234,9 +237,11 @@ YAML
 espera_ks neg-base-remota reason '^BuildFailed$'
 [[ "$(cond Ready neg-base-remota status)" == False ]] || fail "neg-base-remota debería estar en Ready False"
 msg="$(cond Ready neg-base-remota message)"
-# Un fallo de red o de git no prueba la bandera.
-if [[ "$msg" =~ (git|clone|fetch|resolve\ host|exit\ status\ 128|timeout) ]]; then
-  fail "neg-base-remota falló por red o git, no por --no-remote-bases: $msg"
+# Con --no-remote-bases, kustomize-controller construye sobre un sistema de archivos
+# seguro y rechaza lo que quede fuera de la raíz del artefacto ("fs-security-constraint").
+# Cualquier otro error (red, git, ruta mal escrita) no prueba la bandera.
+if [[ ! "$msg" =~ fs-security-constraint ]]; then
+  fail "neg-base-remota no falló por --no-remote-bases: $msg"
 fi
 echo "mensaje: $msg"
 for r in ocirepository/mi-app-chart-remota helmrelease/mi-app-remota; do
