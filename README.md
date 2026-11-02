@@ -16,6 +16,8 @@ Workflows reutilizables de GitHub Actions para los proyectos de kidcuauh. Los ll
 ## Workflows
 
 - `build-push.yml`: construye, escanea y publica una imagen en GHCR. Ver [docs/build-push.md](docs/build-push.md).
+- `deploy.yml`: entrada única de cada repo de app: construye una vez, despliega en los ambientes que no son prod con un commit en `infra/` y promueve a prod con un Release `vX.Y.Z`, sin reconstruir. Ver [docs/deploy.md](docs/deploy.md).
+- `deploy-tests.yml`: pruebas sin red de los scripts de `deploy.yml` (`scripts/tests/deploy-tests.sh`).
 - `cleanup-images.yml`: retención de versiones de imágenes. Ver [docs/cleanup-images.md](docs/cleanup-images.md).
 - `selftest.yml`: prueba `build-push.yml` con `push: false` sobre imágenes de `tests/fixtures/`. Dos de sus jobs fallan a propósito (`imagen-cve`, `imagen-secreto`) y dejan el run en rojo: el check que cuenta es `resultado`.
 - `release-chart.yml`: publica el chart `app` en GHCR con un tag `chart-vX.Y.Z` sobre `main`, lo firma con cosign keyless y crea una release inmutable. Ver [docs/release-chart.md](docs/release-chart.md).

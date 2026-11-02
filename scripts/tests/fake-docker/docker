@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# docker falso para las pruebas sin red de deploy-*.sh. Simula un registro en un
+# directorio ($FAKE_REGISTRY: un archivo por imagen:tag con el digest adentro).
+#   buildx imagetools inspect REF --format ...   imprime el manifiesto JSON; un tag
+#       ausente sale 1 con "ERROR: <ref>: not found". FAKE_DOCKER_FAIL=1 simula un
+#       error de red (sale 1 con otro mensaje).
+#   buildx imagetools create --prefer-index=false -t IMAGE:TAG IMAGE@DIGEST
+#       crea el tag; FAKE_RETAG_DIGEST simula que el tag queda con otro digest.
+#   login / logout   no hacen nada.
+# Cada llamada se anota en $FAKE_DOCKER_LOG (por defecto /dev/null).
+set -euo pipefail
+
+echo "docker $*" >>"${FAKE_DOCKER_LOG:-/dev/null}"
+
+file_for() { # image:tag
+  printf '%s/%s' "$FAKE_REGISTRY" "$(printf '%s' "$1" | tr '/:' '__')"
+}
+
+case "${1-}" in
+  login | logout)
+    cat >/dev/null 2>&1 || true
+    exit 0
+    ;;
+  buildx) shift ;;
+  *)
+    echo "fake docker: comando no soportado" >&2
+    exit 2
+    ;;
+esac
+[[ "${1-}" == imagetools ]] || { echo "fake docker: solo imagetools" >&2; exit 2; }
+shift
+case "${1-}" in
+  inspect)
+    ref="$2"
+    if [[ "${FAKE_DOCKER_FAIL:-}" == 1 ]]; then
+      echo "ERROR: failed to do request: connection reset by peer" >&2
+      exit 1
+    fi
+    f="$(file_for "$ref")"
+    if [[ ! -f "$f" ]]; then
+      echo "ERROR: $ref: not found" >&2
+      exit 1
+    fi
+    printf '{"mediaType":"application/vnd.oci.image.manifest.v1+json","digest":"%s","size":1}\n' "$(cat "$f")"
+    ;;
+  create)
+    shift
+    target=""
+    src=""
+    while (($# > 0)); do
+      case "$1" in
+        --prefer-index=false) shift ;;
+        -t)
+          target="$2"
+          shift 2
+          ;;
+        *)
+          src="$1"
+          shift
+          ;;
+      esac
+    done
+    [[ -n "$target" && "$src" == *@sha256:* ]] || { echo "fake docker: create mal formado" >&2; exit 2; }
+    digest="${src#*@}"
+    printf '%s' "${FAKE_RETAG_DIGEST:-$digest}" >"$(file_for "$target")"
+    ;;
+  *)
+    echo "fake docker: subcomando no soportado" >&2
+    exit 2
+    ;;
+esac

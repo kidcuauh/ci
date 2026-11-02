@@ -11,7 +11,7 @@ set -euo pipefail
 # Permisos que sí pueden ser write. Un elemento "scope" vale en todos los archivos;
 # "archivo.yml:scope" solo en ese archivo (otra tarea puede necesitar, por ejemplo,
 # "release.yml:contents"). Todo lo demás con write se rechaza.
-WRITE_ALLOWED=("packages" "release-chart.yml:contents" "release-chart.yml:id-token")
+WRITE_ALLOWED=("packages" "release-chart.yml:contents" "release-chart.yml:id-token" "deploy.yml:contents")
 
 # Extrae el bloque `on:` de la raíz (número de línea:texto sin comentarios).
 IFS= read -r -d '' AWK_ON <<'AWK' || true
