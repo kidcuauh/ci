@@ -1,0 +1,3 @@
+# espera: /image/repository
+image:
+  repository: ghcr.io/Mi-Org/mi-app

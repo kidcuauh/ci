@@ -1,0 +1,7 @@
+# espera: additional properties 'annotations' not allowed
+web:
+  ingress:
+    enabled: true
+    annotations: {a: b}
+    hosts:
+      - host: mi-app.example.com

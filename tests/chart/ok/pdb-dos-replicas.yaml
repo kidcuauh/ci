@@ -1,0 +1,17 @@
+# PDB con maxUnavailable 1 solo con 2 o más réplicas (web y worker); con 1 réplica no sale.
+# afirma: .[] | select(.kind == "PodDisruptionBudget" and .metadata.name == "mi-app") | (.spec.maxUnavailable == 1 and .spec.selector.matchLabels."app.kubernetes.io/component" == "web")
+# afirma: .[] | select(.kind == "PodDisruptionBudget" and .metadata.name == "mi-app-cola") | .spec.maxUnavailable == 1
+# afirma: [.[] | select(.kind == "PodDisruptionBudget")] | length == 2
+# afirma: [.[] | select(.kind == "Deployment" and .metadata.name == "mi-app-uno") | .metadata.name] | length == 1
+web:
+  replicas: 2
+workers:
+  - name: cola
+    command: [node, worker.js]
+    replicas: 2
+    resources: &r
+      requests: {cpu: 10m, memory: 32Mi}
+      limits: {memory: 64Mi}
+  - name: uno
+    command: [node, uno.js]
+    resources: *r

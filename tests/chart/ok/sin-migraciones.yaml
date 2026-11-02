@@ -1,0 +1,3 @@
+# Con migrations.enabled false no sale ningún Job.
+# afirma: [.[] | select(.kind == "Job")] | length == 0
+{}

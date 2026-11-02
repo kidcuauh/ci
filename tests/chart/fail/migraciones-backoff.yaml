@@ -1,0 +1,8 @@
+# espera: additional properties 'backoffLimit' not allowed
+migrations:
+  enabled: true
+  backoffLimit: 3
+  command: [node, migrate.js]
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {memory: 128Mi}

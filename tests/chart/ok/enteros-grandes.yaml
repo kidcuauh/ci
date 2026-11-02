@@ -1,0 +1,16 @@
+# UIDs de un rango de user namespace y el ttl máximo no se renderizan en notación científica.
+# afirma: .[] | select(.kind == "Deployment") | ((.spec.template.spec.securityContext.runAsUser | tag) == "!!int" and (.spec.template.spec.securityContext.fsGroup | tag) == "!!int" and (.spec.template.spec.securityContext.runAsGroup | tag) == "!!int")
+# afirma: .[] | select(.kind == "Deployment") | .spec.template.spec.securityContext.runAsUser == 1000000
+# afirma: .[] | select(.kind == "CronJob") | ((.spec.jobTemplate.spec.ttlSecondsAfterFinished | tag) == "!!int" and .spec.jobTemplate.spec.ttlSecondsAfterFinished == 2592000)
+securityContext:
+  runAsUser: 1000000
+  runAsGroup: 1000000
+  fsGroup: 2000000
+cronJobs:
+  - name: limpieza
+    schedule: "0 3 * * *"
+    ttlSecondsAfterFinished: 2592000
+    command: [node, clean.js]
+    resources:
+      requests: {cpu: 10m, memory: 32Mi}
+      limits: {memory: 64Mi}

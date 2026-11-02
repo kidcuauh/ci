@@ -1,0 +1,5 @@
+# Sin secretos declarados no sale InfisicalStaticSecret ni envFrom.
+# afirma: [.[] | select(.kind == "InfisicalStaticSecret")] | length == 0
+# afirma: .[] | select(.kind == "Deployment") | .spec.template.spec.containers[0] | has("envFrom") | not
+# afirma: .[] | select(.kind == "Deployment") | .metadata | has("annotations") | not
+{}

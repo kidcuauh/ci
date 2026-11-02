@@ -1,0 +1,5 @@
+# espera: additional properties 'successThreshold' not allowed
+web:
+  probes:
+    liveness:
+      successThreshold: 2

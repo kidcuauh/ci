@@ -1,0 +1,1 @@
+infra/base/mi-app/helmrelease.yaml .spec.dependsOn = [{"name": "x", "namespace": "kube-system"}]

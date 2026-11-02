@@ -1,0 +1,30 @@
+- kind: Deployment
+  name: golden
+  selector:
+    app.kubernetes.io/instance: golden
+    app.kubernetes.io/component: web
+- kind: Deployment
+  name: golden-cola
+  selector:
+    app.kubernetes.io/instance: golden
+    app.kubernetes.io/component: worker-cola
+- kind: Deployment
+  name: golden-correo
+  selector:
+    app.kubernetes.io/instance: golden
+    app.kubernetes.io/component: worker-correo
+- kind: PodDisruptionBudget
+  name: golden
+  selector:
+    app.kubernetes.io/instance: golden
+    app.kubernetes.io/component: web
+- kind: PodDisruptionBudget
+  name: golden-cola
+  selector:
+    app.kubernetes.io/instance: golden
+    app.kubernetes.io/component: worker-cola
+- kind: Service
+  name: golden
+  selector:
+    app.kubernetes.io/instance: golden
+    app.kubernetes.io/component: web

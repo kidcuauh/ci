@@ -1,0 +1,8 @@
+# espera: /cronJobs/0/schedule
+cronJobs:
+  - name: limpieza
+    schedule: "cada hora"
+    command: [node, limpiar.js]
+    resources:
+      requests: {cpu: 10m, memory: 32Mi}
+      limits: {memory: 64Mi}

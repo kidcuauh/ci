@@ -1,0 +1,5 @@
+# serviceAccount.name distinto del release con create true.
+# afirma: .[] | select(.kind == "ServiceAccount") | .metadata.name == "mi-app-sa"
+# afirma: .[] | select(.kind == "Deployment") | .spec.template.spec.serviceAccountName == "mi-app-sa"
+serviceAccount:
+  name: mi-app-sa

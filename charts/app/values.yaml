@@ -1,0 +1,103 @@
+# Values del chart "app". Un release = una imagen. Los campos marcados como obligatorios
+# no tienen un default utilizable: el schema (values.schema.json) rechaza el valor vacío.
+# Doc completa: docs/chart-app.md del repo kidcuauh/ci.
+
+# Imagen (obligatorio: repository y tag). Con digest renderiza repository:tag@digest.
+image:
+  repository: ""        # sin tag ni digest, en minúsculas: ghcr.io/mi-org/mi-app
+  tag: ""               # sha-<12 hex> o X.Y.Z, siempre como cadena
+  digest: ""            # vacío o sha256:<64 hex>
+  pullPolicy: IfNotPresent
+
+# Secretos de pull que ya existen en el namespace (nombres ghcr-<org>).
+imagePullSecrets: []
+
+# Obligatorio: tenant-prod o tenant-dev.
+priorityClassName: ""
+
+# Con create: true el chart crea la ServiceAccount (nombre del release si name está vacío).
+# Con create: false, name es obligatorio y apunta a una que ya existe.
+serviceAccount:
+  create: true
+  name: ""
+
+# Usuario y grupo numéricos del contenedor (runAsNonRoot siempre activo).
+securityContext:
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+
+# El filesystem es de solo lectura: cada ruta de esta lista se monta como emptyDir.
+writablePaths:
+  - /tmp
+emptyDirSizeLimit: 256Mi
+
+terminationGracePeriodSeconds: 30
+
+placement:
+  zone: any                          # any (sin zona) o el valor de topology.kubernetes.io/zone
+  whenUnsatisfiable: ScheduleAnyway  # DoNotSchedule | ScheduleAnyway
+
+# Variables comunes a todos los contenedores del release. Solo valores literales no
+# secretos, o una referencia valueFrom.secretKeyRef a un Secret de la lista permitida.
+env: []
+
+secrets:
+  infisical:
+    enabled: false
+    refreshInterval: 5m   # mínimo 5m
+    sources: []           # [{projectSlug, environmentSlug, secretPath, recursive}]
+
+files:
+  configMaps: []          # [{name, mountPath}]: monta un ConfigMap existente como directorio
+  secretKeys: []          # [{secret, key, mountPath}]: monta una llave como archivo
+
+# Monta un PVC que ya existe (el chart no crea PVC). Solo en el web.
+persistence:
+  enabled: false
+  existingClaim: ""
+  mountPath: /data
+  subPath: ""
+
+web:
+  enabled: true
+  replicas: 1
+  strategy: RollingUpdate   # RollingUpdate | Recreate (Recreate exige replicas <= 1)
+  command: []
+  args: []
+  port: 8080                # containerPort con nombre "http"
+  extraPorts: []            # [{name, port, protocol}]
+  service:
+    port: 80
+  # readiness y liveness son obligatorias si web.enabled; startup es opcional.
+  probes:
+    readiness: {}
+    liveness: {}
+    startup: {}
+  # Obligatorio si web.enabled: requests de cpu y memoria, limits.memory.
+  resources: {}
+  ingress:
+    enabled: false
+    hosts: []               # [{host, path}], path por defecto "/"
+
+# Misma imagen, otro command. Cada worker es un Deployment <release>-<name>.
+# - name: cola
+#   command: [node, worker.js]
+#   resources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 128Mi}}
+workers: []
+
+# CronJobs <release>-<name> (concurrencyPolicy Forbid).
+# - name: limpieza
+#   schedule: "0 3 * * *"
+#   command: [node, limpiar.js]
+#   resources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 128Mi}}
+cronJobs: []
+
+# Job de Helm (hook post-install y pre-upgrade) con backoffLimit 0 y sin rollback.
+migrations:
+  enabled: false
+  command: []
+  args: []
+  resources: {}
+  activeDeadlineSeconds: 1800
+  env: []

@@ -1,0 +1,13 @@
+apiVersion: v2
+name: app
+description: Una aplicación web, sus workers y cron jobs, con Pod Security restricted y secretos solo por referencia.
+type: application
+kubeVersion: ">=1.27.0-0"
+version: 1.0.0-rc.1
+appVersion: "1.0.0"
+keywords:
+  - app
+  - kubernetes
+home: https://github.com/kidcuauh/ci
+sources:
+  - https://github.com/kidcuauh/ci

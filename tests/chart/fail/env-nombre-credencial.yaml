@@ -1,0 +1,4 @@
+# espera: /env/0/name
+env:
+  - name: DB_PASS
+    value: valor

@@ -1,0 +1,20 @@
+# Chart "app" por digest y con firma verificada. Sin metadata.namespace: lo pone la plataforma.
+# El nombre lleva el de la app: con varias fuentes en un namespace no puede repetirse.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: mi-app-chart
+spec:
+  interval: 10m
+  url: oci://ghcr.io/kidcuauh/charts/app
+  ref:
+    # Digest de la versión del chart (lo da la release chart-vX.Y.Z). Subirlo es un PR manual.
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  layerSelector:
+    mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
+    operation: copy
+  verify:
+    provider: cosign
+    matchOIDCIdentity:
+      - issuer: ^https://token\.actions\.githubusercontent\.com$
+        subject: ^https://github\.com/kidcuauh/ci/\.github/workflows/release-chart\.yml@refs/tags/chart-v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$

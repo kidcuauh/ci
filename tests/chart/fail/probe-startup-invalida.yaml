@@ -1,0 +1,5 @@
+# espera: /web/probes/startup
+web:
+  probes:
+    startup:
+      periodSeconds: 5

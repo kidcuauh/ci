@@ -1,0 +1,7 @@
+# espera: /workers/0/name
+workers:
+  - name: Cola_1
+    command: [node, worker.js]
+    resources:
+      requests: {cpu: 10m, memory: 32Mi}
+      limits: {memory: 64Mi}

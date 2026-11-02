@@ -1,0 +1,9 @@
+# image.digest renderiza repo:tag@digest; imagePullSecrets en el pod, no en la ServiceAccount.
+# afirma: .[] | select(.kind == "Deployment") | .spec.template.spec.containers[0].image == "ghcr.io/mi-org/mi-app:sha-0123456789ab@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+# afirma: .[] | select(.kind == "Deployment") | .spec.template.spec.imagePullSecrets[0].name == "ghcr-mi-org"
+# afirma: .[] | select(.kind == "ServiceAccount") | has("imagePullSecrets") | not
+image:
+  tag: sha-0123456789ab
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+imagePullSecrets:
+  - ghcr-mi-org

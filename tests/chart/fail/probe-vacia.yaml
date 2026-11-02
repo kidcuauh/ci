@@ -1,0 +1,6 @@
+# espera: /web/probes/readiness
+web:
+  probes:
+    readiness:
+      httpGet: null
+      periodSeconds: 5

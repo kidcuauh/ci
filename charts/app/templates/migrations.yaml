@@ -1,0 +1,28 @@
+{{- if .Values.migrations.enabled }}
+{{- $m := .Values.migrations }}
+{{- $comp := dict "ctx" . "component" "migrations" }}
+{{- /*
+Hook post-install y pre-upgrade. En la primera instalación la ServiceAccount y el Secret
+de Infisical todavía no existen en la fase pre-install, por eso post-install; en cada
+upgrade (bump de imagen) corre antes de los pods nuevos. Sin rollback: si falla, el
+release queda fallido.
+*/}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ printf "%s-migrations" .Release.Name }}
+  labels:
+    {{- include "app.labels" $comp | nindent 4 }}
+  annotations:
+    helm.sh/hook: post-install,pre-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: {{ int64 $m.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "app.podLabels" $comp | nindent 8 }}
+    spec:
+      {{- include "app.podSpec" (dict "ctx" . "component" "migrations" "command" $m.command "args" $m.args "resources" $m.resources "env" $m.env "restartPolicy" "Never") | nindent 6 }}
+{{- end }}

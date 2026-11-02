@@ -1,0 +1,14 @@
+# espera: el PVC solo se monta en el web
+web:
+  enabled: false
+  probes: null
+  resources: null
+persistence:
+  enabled: true
+  existingClaim: mi-datos
+workers:
+  - name: cola
+    command: [node, worker.js]
+    resources:
+      requests: {cpu: 10m, memory: 32Mi}
+      limits: {memory: 64Mi}

@@ -1,0 +1,3 @@
+# espera: additional properties 'privileged' not allowed
+securityContext:
+  privileged: true

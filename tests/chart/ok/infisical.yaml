@@ -1,0 +1,28 @@
+# InfisicalStaticSecret v1beta1 con sources tal cual, infisical-auth y targets en el namespace del release, refreshInterval, envFrom del Secret del release y auto-reload.
+# afirma: .[] | select(.kind == "InfisicalStaticSecret") | (.apiVersion == "secrets.infisical.com/v1beta1" and .metadata.name == "mi-app")
+# afirma: .[] | select(.kind == "InfisicalStaticSecret") | (.spec.infisicalAuthRef.name == "infisical-auth" and .spec.infisicalAuthRef.namespace == "mi-ns")
+# afirma: .[] | select(.kind == "InfisicalStaticSecret") | (.spec.targets[0].kind == "Secret" and .spec.targets[0].name == "mi-app-secrets" and .spec.targets[0].namespace == "mi-ns" and .spec.targets[0].creationPolicy == "Owner")
+# afirma: .[] | select(.kind == "InfisicalStaticSecret") | .spec.syncOptions.refreshInterval == "10m"
+# afirma: .[] | select(.kind == "InfisicalStaticSecret") | (.spec.sources[0].secretPath == "/" and .spec.sources[0].recursive == false and .spec.sources[1].secretPath == "/api" and .spec.sources[1].recursive == true)
+# afirma: .[] | select(.kind == "InfisicalStaticSecret") | .spec.sources[0] | has("projectId") | not
+# afirma: .[] | select(.kind == "Deployment" and .metadata.name == "mi-app") | (.spec.template.spec.containers[0].envFrom[0].secretRef.name == "mi-app-secrets" and .metadata.annotations."secrets.infisical.com/auto-reload" == "true")
+# afirma: .[] | select(.kind == "Deployment" and .metadata.name == "mi-app-cola") | (.spec.template.spec.containers[0].envFrom[0].secretRef.name == "mi-app-secrets" and .metadata.annotations."secrets.infisical.com/auto-reload" == "true")
+# afirma: [.[] | select(.kind == "Secret")] | length == 0
+# namespace: mi-ns
+secrets:
+  infisical:
+    enabled: true
+    refreshInterval: 10m
+    sources:
+      - projectSlug: mi-proyecto
+        environmentSlug: dev
+      - projectSlug: mi-proyecto
+        environmentSlug: dev
+        secretPath: /api
+        recursive: true
+workers:
+  - name: cola
+    command: [node, worker.js]
+    resources:
+      requests: {cpu: 10m, memory: 32Mi}
+      limits: {memory: 64Mi}

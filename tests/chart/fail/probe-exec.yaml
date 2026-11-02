@@ -1,0 +1,7 @@
+# espera: additional properties 'exec' not allowed
+web:
+  probes:
+    liveness:
+      httpGet: null
+      exec:
+        command: [true]

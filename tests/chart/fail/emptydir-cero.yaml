@@ -1,0 +1,3 @@
+# espera: /emptyDirSizeLimit
+writablePaths: [/tmp]
+emptyDirSizeLimit: "0"

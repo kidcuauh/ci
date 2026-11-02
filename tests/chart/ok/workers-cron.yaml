@@ -1,0 +1,21 @@
+# Un Deployment por worker y un CronJob con concurrencyPolicy Forbid, timeZone y plazos por defecto.
+# afirma: .[] | select(.kind == "Deployment" and .metadata.name == "mi-app-cola") | .spec.selector.matchLabels."app.kubernetes.io/component" == "worker-cola"
+# afirma: .[] | select(.kind == "Deployment" and .metadata.name == "mi-app-cola") | (.spec.replicas == 1 and .spec.template.spec.containers[0].command[0] == "node" and .spec.template.spec.containers[0].args[0] == "--cola")
+# afirma: .[] | select(.kind == "CronJob") | (.metadata.name == "mi-app-limpieza" and .spec.concurrencyPolicy == "Forbid" and .spec.timeZone == "Etc/UTC")
+# afirma: .[] | select(.kind == "CronJob") | (.spec.jobTemplate.spec.activeDeadlineSeconds == 3600 and .spec.jobTemplate.spec.ttlSecondsAfterFinished == 86400 and .spec.jobTemplate.spec.backoffLimit == 0 and .spec.startingDeadlineSeconds == 300)
+# afirma: .[] | select(.kind == "CronJob") | .spec.jobTemplate.spec.template.spec.restartPolicy == "Never"
+# afirma: .[] | select(.kind == "CronJob") | .spec.jobTemplate.spec.template.metadata.labels."app.kubernetes.io/component" == "cron-limpieza"
+workers:
+  - name: cola
+    command: [node, worker.js]
+    args: [--cola]
+    resources:
+      requests: {cpu: 10m, memory: 32Mi}
+      limits: {memory: 64Mi}
+cronJobs:
+  - name: limpieza
+    schedule: "0 3 * * *"
+    command: [node, limpiar.js]
+    resources:
+      requests: {cpu: 10m, memory: 32Mi}
+      limits: {memory: 64Mi}

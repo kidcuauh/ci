@@ -1,0 +1,11 @@
+# espera: necesita httpGet.port
+workers:
+  - name: cola
+    command: [node, worker.js]
+    probes:
+      liveness:
+        httpGet:
+          path: /healthz
+    resources:
+      requests: {cpu: 10m, memory: 32Mi}
+      limits: {memory: 64Mi}

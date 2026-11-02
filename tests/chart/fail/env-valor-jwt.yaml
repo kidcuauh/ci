@@ -1,0 +1,4 @@
+# espera: /env/0/value
+env:
+  - name: SESSION_HINT
+    value: "@@JWT@@"

@@ -1,0 +1,6 @@
+# espera: /web/extraPorts/0/protocol
+web:
+  extraPorts:
+    - name: metrics
+      port: 9090
+      protocol: SCTP

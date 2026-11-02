@@ -1,0 +1,8 @@
+# espera: /secrets/infisical/sources/0/secretPath
+secrets:
+  infisical:
+    enabled: true
+    sources:
+      - projectSlug: mi-proyecto
+        environmentSlug: dev
+        secretPath: api

@@ -1,0 +1,26 @@
+# startupProbe, liveness tcpSocket con puerto numérico y parámetros de tiempo.
+# afirma: .[] | select(.kind == "Deployment") | (.spec.template.spec.containers[0].startupProbe.httpGet.path == "/ready" and .spec.template.spec.containers[0].startupProbe.failureThreshold == 30)
+# afirma: .[] | select(.kind == "Deployment") | .spec.template.spec.containers[0].livenessProbe.tcpSocket.port == 8080
+# afirma: .[] | select(.kind == "Deployment") | (.spec.template.spec.containers[0].readinessProbe.successThreshold == 2 and .spec.template.spec.containers[0].readinessProbe.httpGet.port == "http")
+# base: ninguna
+image:
+  repository: ghcr.io/mi-org/mi-app
+  tag: "1.2.3"
+priorityClassName: tenant-dev
+web:
+  probes:
+    startup:
+      httpGet:
+        path: /ready
+      failureThreshold: 30
+      periodSeconds: 5
+    liveness:
+      tcpSocket:
+        port: 8080
+    readiness:
+      httpGet:
+        path: /healthz
+      successThreshold: 2
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {memory: 256Mi}

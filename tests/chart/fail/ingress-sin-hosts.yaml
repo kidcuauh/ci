@@ -1,0 +1,4 @@
+# espera: minItems
+web:
+  ingress:
+    enabled: true

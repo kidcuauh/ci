@@ -1,0 +1,10 @@
+# runAsUser, runAsGroup y fsGroup configurables, y command y args del web.
+# afirma: .[] | select(.kind == "Deployment") | (.spec.template.spec.securityContext.runAsUser == 20000 and .spec.template.spec.securityContext.runAsGroup == 20001 and .spec.template.spec.securityContext.fsGroup == 20002 and .spec.template.spec.securityContext.runAsNonRoot == true)
+# afirma: .[] | select(.kind == "Deployment") | (.spec.template.spec.containers[0].command[0] == "node" and .spec.template.spec.containers[0].args[1] == "8080")
+securityContext:
+  runAsUser: 20000
+  runAsGroup: 20001
+  fsGroup: 20002
+web:
+  command: [node, server.js]
+  args: [--port, "8080"]

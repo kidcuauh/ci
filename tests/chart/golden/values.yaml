@@ -1,0 +1,52 @@
+# Values del golden: cubre web con PDB, worker con PDB, worker sin PDB, cron, migraciones e Infisical.
+# El golden (selectors.yaml) fija los selectores de los Deployments, Services y PDB: cambiarlo
+# rompe los despliegues existentes, así que se edita solo para agregar casos nuevos
+# (UPDATE_GOLDEN=1 bash scripts/test-chart.sh lo regenera).
+image:
+  repository: ghcr.io/mi-org/mi-app
+  tag: "1.2.3"
+priorityClassName: tenant-prod
+secrets:
+  infisical:
+    enabled: true
+    sources:
+      - projectSlug: mi-proyecto
+        environmentSlug: prod
+web:
+  replicas: 2
+  extraPorts:
+    - name: metrics
+      port: 9090
+  probes:
+    readiness:
+      httpGet:
+        path: /healthz
+    liveness:
+      httpGet:
+        path: /healthz
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {memory: 256Mi}
+  ingress:
+    enabled: true
+    hosts:
+      - host: mi-app.example.com
+workers:
+  - name: cola
+    command: [node, worker.js]
+    replicas: 2
+    resources: &r
+      requests: {cpu: 10m, memory: 32Mi}
+      limits: {memory: 64Mi}
+  - name: correo
+    command: [node, correo.js]
+    resources: *r
+cronJobs:
+  - name: limpieza
+    schedule: "0 3 * * *"
+    command: [node, limpiar.js]
+    resources: *r
+migrations:
+  enabled: true
+  command: [node, migrate.js]
+  resources: *r

@@ -1,0 +1,4 @@
+# espera: minItems
+secrets:
+  infisical:
+    enabled: true

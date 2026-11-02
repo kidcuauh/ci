@@ -1,0 +1,4 @@
+# espera: missing property 'liveness'
+web:
+  probes:
+    liveness: null

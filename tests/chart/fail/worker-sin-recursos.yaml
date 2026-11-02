@@ -1,0 +1,4 @@
+# espera: missing property 'resources'
+workers:
+  - name: cola
+    command: [node, worker.js]

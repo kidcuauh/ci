@@ -1,0 +1,5 @@
+# espera: missing property 'resources'
+cronJobs:
+  - name: limpieza
+    schedule: "0 3 * * *"
+    command: [node, limpiar.js]

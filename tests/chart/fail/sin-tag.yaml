@@ -1,0 +1,3 @@
+# espera: missing property 'tag'
+image:
+  tag: null

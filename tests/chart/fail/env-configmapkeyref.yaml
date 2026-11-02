@@ -1,0 +1,7 @@
+# espera: additional properties 'configMapKeyRef' not allowed
+env:
+  - name: A
+    valueFrom:
+      configMapKeyRef:
+        name: x
+        key: y

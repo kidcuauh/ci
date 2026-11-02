@@ -1,0 +1,1 @@
+infra/base/mi-app/ocirepository.yaml .spec.ref = {"tag": "1.0.0"}

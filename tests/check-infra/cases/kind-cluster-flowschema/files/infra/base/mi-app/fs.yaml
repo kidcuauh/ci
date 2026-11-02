@@ -1,0 +1,7 @@
+apiVersion: flowcontrol.apiserver.k8s.io/v1
+kind: FlowSchema
+metadata:
+  name: x
+spec:
+  priorityLevelConfiguration:
+    name: global-default

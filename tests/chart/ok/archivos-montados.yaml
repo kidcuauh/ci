@@ -1,0 +1,23 @@
+# ConfigMap como directorio y llaves de Secret como archivo (del release y de un Secret permitido), de solo lectura y con subPath.
+# afirma: .[] | select(.kind == "Deployment") | .spec.template.spec.volumes[] | select(.name == "cm-0") | .configMap.name == "mi-app-config-abc123"
+# afirma: .[] | select(.kind == "Deployment") | .spec.template.spec.containers[0].volumeMounts[] | select(.name == "cm-0") | (.mountPath == "/etc/mi-app" and .readOnly == true)
+# afirma: .[] | select(.kind == "Deployment") | .spec.template.spec.volumes[] | select(.name == "secret-0") | .secret.secretName == "mi-app-secrets"
+# afirma: .[] | select(.kind == "Deployment") | .spec.template.spec.containers[0].volumeMounts[] | select(.name == "secret-0") | (.mountPath == "/etc/mi-app/cert.pem" and .subPath == "cert" and .readOnly == true)
+# afirma: .[] | select(.kind == "Deployment") | .spec.template.spec.volumes[] | select(.name == "secret-1") | .secret.secretName == "mi-db-app"
+# afirma: [.[] | select(.kind == "ConfigMap" or .kind == "Secret")] | length == 0
+secrets:
+  infisical:
+    enabled: true
+    sources:
+      - projectSlug: mi-proyecto
+        environmentSlug: dev
+files:
+  configMaps:
+    - name: mi-app-config-abc123
+      mountPath: /etc/mi-app
+  secretKeys:
+    - key: cert
+      mountPath: /etc/mi-app/cert.pem
+    - secret: mi-db-app
+      key: ca
+      mountPath: /etc/db/ca.pem

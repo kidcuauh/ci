@@ -1,0 +1,18 @@
+# espera: missing property 'memory'
+# base: ninguna
+image:
+  repository: ghcr.io/mi-org/mi-app
+  tag: "1.2.3"
+priorityClassName: tenant-dev
+web:
+  probes:
+    readiness:
+      httpGet:
+        path: /healthz
+    liveness:
+      httpGet:
+        path: /healthz
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits:
+      cpu: 500m

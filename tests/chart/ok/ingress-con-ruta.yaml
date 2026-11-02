@@ -1,0 +1,13 @@
+# Ingress con ingressClassName traefik, una regla por host con pathType Prefix: la ruta indicada y, sin path, /.
+# afirma: .[] | select(.kind == "Ingress") | .spec.ingressClassName == "traefik"
+# afirma: .[] | select(.kind == "Ingress") | (.spec.rules[0].host == "mi-app.example.com" and .spec.rules[0].http.paths[0].path == "/v2" and .spec.rules[0].http.paths[0].pathType == "Prefix")
+# afirma: .[] | select(.kind == "Ingress") | (.spec.rules[1].host == "otro.example.com" and .spec.rules[1].http.paths[0].path == "/")
+# afirma: .[] | select(.kind == "Ingress") | (.spec.rules[0].http.paths[0].backend.service.name == "mi-app" and .spec.rules[0].http.paths[0].backend.service.port.name == "http")
+# afirma: .[] | select(.kind == "Ingress") | .metadata | has("annotations") | not
+web:
+  ingress:
+    enabled: true
+    hosts:
+      - host: mi-app.example.com
+        path: /v2
+      - host: otro.example.com

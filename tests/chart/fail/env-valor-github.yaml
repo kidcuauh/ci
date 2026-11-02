@@ -1,0 +1,4 @@
+# espera: /env/0/value
+env:
+  - name: CI_ID
+    value: "@@GITHUB@@"

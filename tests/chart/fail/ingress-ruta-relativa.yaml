@@ -1,0 +1,7 @@
+# espera: /web/ingress/hosts/0/path
+web:
+  ingress:
+    enabled: true
+    hosts:
+      - host: mi-app.example.com
+        path: v2

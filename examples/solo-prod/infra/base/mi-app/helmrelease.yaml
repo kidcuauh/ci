@@ -1,0 +1,46 @@
+# Values comunes a todos los ambientes. Lo que cambia por ambiente (imagen, host,
+# priorityClassName, réplicas) va en infra/overlays/<env>/mi-app.patch.yaml.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: mi-app
+spec:
+  interval: 10m
+  serviceAccountName: tenant-reconciler
+  chartRef:
+    kind: OCIRepository
+    name: mi-app-chart
+  # Sin rollback automático: si un upgrade (o su Job de migraciones) falla, el release
+  # queda fallido y se decide a mano.
+  install:
+    remediation:
+      retries: 0
+  upgrade:
+    remediation:
+      retries: 0
+      remediateLastFailure: false
+  values:
+    image:
+      repository: ghcr.io/mi-org/mi-app
+    imagePullSecrets:
+      - ghcr-mi-org
+    env:
+      - name: LOG_LEVEL
+        value: info
+    web:
+      port: 8080
+      probes:
+        readiness:
+          httpGet:
+            path: /healthz
+        liveness:
+          httpGet:
+            path: /healthz
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          memory: 256Mi
+      ingress:
+        enabled: true

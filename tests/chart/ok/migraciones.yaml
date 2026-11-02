@@ -1,0 +1,15 @@
+# Job hook post-install y pre-upgrade con backoffLimit 0, sin reintentos, con la misma imagen y el mismo pod restringido.
+# afirma: .[] | select(.kind == "Job") | (.metadata.name == "mi-app-migrations" and .metadata.annotations."helm.sh/hook" == "post-install,pre-upgrade" and .metadata.annotations."helm.sh/hook-delete-policy" == "before-hook-creation")
+# afirma: .[] | select(.kind == "Job") | (.spec.backoffLimit == 0 and .spec.activeDeadlineSeconds == 600 and .spec.template.spec.restartPolicy == "Never")
+# afirma: .[] | select(.kind == "Job") | (.spec.template.spec.containers[0].command[0] == "node" and .spec.template.spec.containers[0].image == "ghcr.io/mi-org/mi-app:1.2.3")
+# afirma: .[] | select(.kind == "Job") | .spec.template.spec.containers[0].env[0].name == "MIGRATE_MODE"
+migrations:
+  enabled: true
+  command: [node, migrate.js]
+  activeDeadlineSeconds: 600
+  env:
+    - name: MIGRATE_MODE
+      value: up
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {memory: 128Mi}

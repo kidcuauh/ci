@@ -1,0 +1,9 @@
+# App web mínima: Deployment, Service con el nombre del release y puerto http con nombre, ServiceAccount; sin PDB, Ingress, Secret ni PVC.
+# afirma: [.[] | select(.kind == "Deployment")] | length == 1
+# afirma: .[] | select(.kind == "Service") | (.metadata.name == "mi-app" and .spec.ports[0].name == "http" and .spec.ports[0].targetPort == "http" and .spec.ports[0].port == 80)
+# afirma: [.[] | select(.kind == "PodDisruptionBudget" or .kind == "Ingress" or .kind == "Secret")] | length == 0
+# afirma: .[] | select(.kind == "Deployment") | .spec.template.spec.containers[0].image == "ghcr.io/mi-org/mi-app:1.2.3"
+# afirma: .[] | select(.kind == "Deployment") | .spec.template.spec.containers[0].ports[0].name == "http"
+# afirma: .[] | select(.kind == "ServiceAccount") | .automountServiceAccountToken == false
+# afirma: .[] | select(.kind == "Deployment") | .spec.strategy.rollingUpdate.maxUnavailable == 0
+{}

@@ -1,0 +1,6 @@
+# espera: /web/probes/liveness
+web:
+  probes:
+    liveness:
+      tcpSocket:
+        port: 8080

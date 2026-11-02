@@ -1,0 +1,1128 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Values del chart app",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "image",
+    "priorityClassName"
+  ],
+  "properties": {
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+([._-][a-z0-9]+)*(:[0-9]+)?(/[a-z0-9]+([._-][a-z0-9]+)*)+$",
+          "maxLength": 255
+        },
+        "tag": {
+          "type": "string",
+          "pattern": "^(sha-[0-9a-f]{12}|(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*))$"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^(sha256:[0-9a-f]{64})?$"
+        },
+        "pullPolicy": {
+          "enum": [
+            "IfNotPresent",
+            "Always"
+          ]
+        }
+      },
+      "required": [
+        "repository",
+        "tag"
+      ]
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^ghcr-[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+        "maxLength": 63
+      },
+      "uniqueItems": true
+    },
+    "priorityClassName": {
+      "enum": [
+        "tenant-prod",
+        "tenant-dev"
+      ]
+    },
+    "serviceAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "create": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$",
+          "maxLength": 63
+        }
+      }
+    },
+    "securityContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "runAsUser": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "runAsGroup": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "fsGroup": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "writablePaths": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/absPath"
+      },
+      "uniqueItems": true,
+      "maxItems": 20
+    },
+    "emptyDirSizeLimit": {
+      "$ref": "#/$defs/positiveQuantity"
+    },
+    "terminationGracePeriodSeconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3600
+    },
+    "placement": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "zone": {
+          "type": "string",
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+          "maxLength": 63
+        },
+        "whenUnsatisfiable": {
+          "enum": [
+            "DoNotSchedule",
+            "ScheduleAnyway"
+          ]
+        }
+      }
+    },
+    "env": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/envVar"
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "infisical": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "refreshInterval": {
+              "type": "string",
+              "pattern": "^(([5-9]|[1-9][0-9]+)m|[1-9][0-9]*[hd])$"
+            },
+            "sources": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "projectSlug": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+                    "maxLength": 63
+                  },
+                  "environmentSlug": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+                    "maxLength": 63
+                  },
+                  "secretPath": {
+                    "type": "string",
+                    "pattern": "^/([A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*)?$",
+                    "maxLength": 255,
+                    "not": {
+                      "pattern": "(^|/)\\.\\.?(/|$)"
+                    }
+                  },
+                  "recursive": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "projectSlug",
+                  "environmentSlug"
+                ]
+              }
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "enabled": {
+                    "const": true
+                  }
+                },
+                "required": [
+                  "enabled"
+                ]
+              },
+              "then": {
+                "required": [
+                  "sources"
+                ],
+                "properties": {
+                  "sources": {
+                    "minItems": 1
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "files": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "configMaps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z0-9]([-.a-z0-9]*[a-z0-9])?$",
+                "maxLength": 253
+              },
+              "mountPath": {
+                "$ref": "#/$defs/absPath"
+              }
+            },
+            "required": [
+              "name",
+              "mountPath"
+            ]
+          }
+        },
+        "secretKeys": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "secret": {
+                "type": "string",
+                "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?-(app|custom-user-secret)$",
+                "maxLength": 63,
+                "not": {
+                  "pattern": "^(deploy-key-|ghcr-|infisical-|sh\\.helm\\.)"
+                }
+              },
+              "key": {
+                "type": "string",
+                "pattern": "^[-._a-zA-Z0-9]+$",
+                "maxLength": 253
+              },
+              "mountPath": {
+                "$ref": "#/$defs/absPath"
+              }
+            },
+            "required": [
+              "key",
+              "mountPath"
+            ]
+          }
+        }
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "existingClaim": {
+          "type": "string",
+          "pattern": "^([a-z0-9]([-.a-z0-9]*[a-z0-9])?)?$",
+          "maxLength": 253
+        },
+        "mountPath": {
+          "$ref": "#/$defs/absPath"
+        },
+        "subPath": {
+          "type": "string",
+          "pattern": "^([A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*)?$",
+          "maxLength": 255,
+          "not": {
+            "pattern": "(^|/)\\.\\.?(/|$)"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            },
+            "required": [
+              "enabled"
+            ]
+          },
+          "then": {
+            "required": [
+              "existingClaim"
+            ],
+            "properties": {
+              "existingClaim": {
+                "minLength": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "web": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "replicas": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 20
+        },
+        "strategy": {
+          "enum": [
+            "RollingUpdate",
+            "Recreate"
+          ]
+        },
+        "command": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "extraPorts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z]([a-z0-9]|-[a-z0-9])*$",
+                "maxLength": 15,
+                "not": {
+                  "const": "http"
+                }
+              },
+              "port": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65535
+              },
+              "protocol": {
+                "enum": [
+                  "TCP",
+                  "UDP"
+                ]
+              }
+            },
+            "required": [
+              "name",
+              "port"
+            ]
+          }
+        },
+        "service": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            }
+          }
+        },
+        "probes": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "readiness": {
+              "$ref": "#/$defs/readinessProbeOptional"
+            },
+            "liveness": {
+              "$ref": "#/$defs/probeOptional"
+            },
+            "startup": {
+              "$ref": "#/$defs/probeOptional"
+            }
+          }
+        },
+        "resources": {
+          "$ref": "#/$defs/resourcesBase"
+        },
+        "ingress": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "hosts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "host": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
+                    "maxLength": 253,
+                    "not": {
+                      "pattern": "^[0-9.]+$"
+                    }
+                  },
+                  "path": {
+                    "type": "string",
+                    "pattern": "^/[A-Za-z0-9._~/-]*$",
+                    "maxLength": 255
+                  }
+                },
+                "required": [
+                  "host"
+                ]
+              }
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "enabled": {
+                    "const": true
+                  }
+                },
+                "required": [
+                  "enabled"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "hosts": {
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "hosts"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "strategy": {
+                "const": "Recreate"
+              }
+            },
+            "required": [
+              "strategy"
+            ]
+          },
+          "then": {
+            "properties": {
+              "replicas": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            },
+            "required": [
+              "enabled"
+            ]
+          },
+          "then": {
+            "required": [
+              "probes",
+              "resources"
+            ],
+            "properties": {
+              "probes": {
+                "required": [
+                  "readiness",
+                  "liveness"
+                ],
+                "properties": {
+                  "readiness": {
+                    "$ref": "#/$defs/readinessProbeRequired"
+                  },
+                  "liveness": {
+                    "$ref": "#/$defs/probeRequired"
+                  }
+                }
+              },
+              "resources": {
+                "$ref": "#/$defs/resources"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "workers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
+            "maxLength": 20
+          },
+          "command": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "replicas": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 20
+          },
+          "strategy": {
+            "enum": [
+              "RollingUpdate",
+              "Recreate"
+            ]
+          },
+          "resources": {
+            "$ref": "#/$defs/resources"
+          },
+          "probes": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "readiness": {
+                "$ref": "#/$defs/readinessProbeOptional"
+              },
+              "liveness": {
+                "$ref": "#/$defs/probeOptional"
+              },
+              "startup": {
+                "$ref": "#/$defs/probeOptional"
+              }
+            }
+          },
+          "env": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/envVar"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "command",
+          "resources"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "strategy": {
+                  "const": "Recreate"
+                }
+              },
+              "required": [
+                "strategy"
+              ]
+            },
+            "then": {
+              "properties": {
+                "replicas": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "cronJobs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
+            "maxLength": 20
+          },
+          "schedule": {
+            "type": "string",
+            "pattern": "^(@(hourly|daily|weekly|monthly|yearly)|([-0-9*/,?A-Za-z]+ ){4}[-0-9*/,?A-Za-z]+)$"
+          },
+          "timeZone": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_+/-]*$",
+            "maxLength": 64
+          },
+          "command": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "resources": {
+            "$ref": "#/$defs/resources"
+          },
+          "activeDeadlineSeconds": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 86400
+          },
+          "ttlSecondsAfterFinished": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2592000
+          },
+          "backoffLimit": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 6
+          },
+          "startingDeadlineSeconds": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 86400
+          },
+          "successfulJobsHistoryLimit": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 20
+          },
+          "failedJobsHistoryLimit": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 20
+          },
+          "suspend": {
+            "type": "boolean"
+          },
+          "env": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/envVar"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "schedule",
+          "command",
+          "resources"
+        ]
+      }
+    },
+    "migrations": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "command": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "resources": {
+          "$ref": "#/$defs/resourcesBase"
+        },
+        "activeDeadlineSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400
+        },
+        "env": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/envVar"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            },
+            "required": [
+              "enabled"
+            ]
+          },
+          "then": {
+            "required": [
+              "command",
+              "resources"
+            ],
+            "properties": {
+              "command": {
+                "minItems": 1
+              },
+              "resources": {
+                "$ref": "#/$defs/resources"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "port": {
+      "oneOf": [
+        {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        {
+          "type": "string",
+          "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
+          "maxLength": 15
+        }
+      ]
+    },
+    "absPath": {
+      "type": "string",
+      "pattern": "^/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$",
+      "maxLength": 255,
+      "not": {
+        "pattern": "(^|/)\\.\\.?(/|$)"
+      }
+    },
+    "probe": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "httpGet": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "path": {
+              "type": "string",
+              "pattern": "^/"
+            },
+            "port": {
+              "$ref": "#/$defs/port"
+            }
+          },
+          "required": [
+            "path"
+          ]
+        },
+        "tcpSocket": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "port": {
+              "$ref": "#/$defs/port"
+            }
+          }
+        },
+        "initialDelaySeconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 600
+        },
+        "periodSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 300
+        },
+        "timeoutSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60
+        },
+        "failureThreshold": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30
+        }
+      }
+    },
+    "readinessProbe": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "httpGet": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "path": {
+              "type": "string",
+              "pattern": "^/"
+            },
+            "port": {
+              "$ref": "#/$defs/port"
+            }
+          },
+          "required": [
+            "path"
+          ]
+        },
+        "tcpSocket": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "port": {
+              "$ref": "#/$defs/port"
+            }
+          }
+        },
+        "initialDelaySeconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 600
+        },
+        "periodSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 300
+        },
+        "timeoutSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60
+        },
+        "failureThreshold": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30
+        },
+        "successThreshold": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        }
+      }
+    },
+    "probeRequired": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/probe"
+        },
+        {
+          "oneOf": [
+            {
+              "required": [
+                "httpGet"
+              ]
+            },
+            {
+              "required": [
+                "tcpSocket"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "readinessProbeRequired": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/readinessProbe"
+        },
+        {
+          "oneOf": [
+            {
+              "required": [
+                "httpGet"
+              ]
+            },
+            {
+              "required": [
+                "tcpSocket"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "probeOptional": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {}
+        },
+        {
+          "$ref": "#/$defs/probeRequired"
+        }
+      ]
+    },
+    "readinessProbeOptional": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {}
+        },
+        {
+          "$ref": "#/$defs/readinessProbeRequired"
+        }
+      ]
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requests": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "cpu": {
+              "$ref": "#/$defs/positiveQuantity"
+            },
+            "memory": {
+              "$ref": "#/$defs/positiveQuantity"
+            }
+          },
+          "required": [
+            "cpu",
+            "memory"
+          ]
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "cpu": {
+              "$ref": "#/$defs/positiveQuantity"
+            },
+            "memory": {
+              "$ref": "#/$defs/positiveQuantity"
+            }
+          },
+          "required": [
+            "memory"
+          ]
+        }
+      },
+      "required": [
+        "requests",
+        "limits"
+      ]
+    },
+    "resourcesBase": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requests": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "cpu": {
+              "$ref": "#/$defs/positiveQuantity"
+            },
+            "memory": {
+              "$ref": "#/$defs/positiveQuantity"
+            }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "cpu": {
+              "$ref": "#/$defs/positiveQuantity"
+            },
+            "memory": {
+              "$ref": "#/$defs/positiveQuantity"
+            }
+          }
+        }
+      }
+    },
+    "envVar": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+              "maxLength": 253,
+              "not": {
+                "pattern": "(?i)(^|_)(PASS|PASSWD|PASSWORD|SECRET|SECRETS|TOKEN|TOKENS|APIKEY|API_KEY|PRIVATE_KEY|PRIVATEKEY|CREDENTIAL|CREDENTIALS|DSN|CONNECTION_STRING|CONN_STR|KEY)($|_)"
+              }
+            },
+            "value": {
+              "type": "string",
+              "not": {
+                "pattern": "(://[^/\\s:@]+:[^/\\s@]+@|-----BEGIN [A-Z ]*PRIVATE KEY|AKIA[0-9A-Z]{16}|gh[pousr]_|github_pat_|glpat-|xox[baprs]-|sk_(live|test)_|AIza[0-9A-Za-z_-]{35}|eyJ[0-9A-Za-z_-]+\\.eyJ)"
+              }
+            }
+          },
+          "required": [
+            "name",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+              "maxLength": 253
+            },
+            "valueFrom": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "secretKeyRef": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": {
+                      "$ref": "#/$defs/platformSecretName"
+                    },
+                    "key": {
+                      "type": "string",
+                      "pattern": "^[-._a-zA-Z0-9]+$",
+                      "maxLength": 253
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "key"
+                  ]
+                }
+              },
+              "required": [
+                "secretKeyRef"
+              ]
+            }
+          },
+          "required": [
+            "name",
+            "valueFrom"
+          ]
+        }
+      ]
+    },
+    "platformSecretName": {
+      "type": "string",
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?-(app|custom-user-secret)$",
+      "maxLength": 63,
+      "not": {
+        "pattern": "^(deploy-key-|ghcr-|infisical-|sh\\.helm\\.)"
+      }
+    },
+    "positiveQuantity": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1
+        },
+        {
+          "type": "string",
+          "pattern": "^([0-9]*[1-9][0-9]*(\\.[0-9]+)?|[0-9]*\\.[0-9]*[1-9][0-9]*)(m|k|Ki|Mi|Gi|Ti|M|G|T)?$"
+        }
+      ]
+    }
+  }
+}

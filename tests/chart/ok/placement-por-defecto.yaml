@@ -1,0 +1,4 @@
+# Sin zona no hay nodeAffinity y el default de whenUnsatisfiable es ScheduleAnyway.
+# afirma: .[] | select(.kind == "Deployment") | .spec.template.spec | has("affinity") | not
+# afirma: .[] | select(.kind == "Deployment") | .spec.template.spec.topologySpreadConstraints[0].whenUnsatisfiable == "ScheduleAnyway"
+{}
