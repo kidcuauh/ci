@@ -116,7 +116,7 @@ jobs:
   siguiente:
     needs: build
     if: needs.build.outputs.pushed == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions: {}
     steps:
       - run: echo "${{ needs.build.outputs.ref }}"

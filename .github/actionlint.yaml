@@ -1,3 +1,8 @@
+# actionlint 1.7.12 aún no conoce la imagen ubuntu-26.04 de GitHub (ya en GA). Se declara
+# como etiqueta conocida; es la opción de actionlint para etiquetas que no trae.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04
 # actionlint 1.7.12 aún no conoce job.workflow_repository ni job.workflow_sha
 # (contexto documentado por GitHub). Se ignoran solo esos dos avisos y solo aquí.
 paths:
