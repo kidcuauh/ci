@@ -64,8 +64,8 @@ for tool in "$@"; do
     cosign/darwin) fetch https://github.com/sigstore/cosign/releases/download/v3.1.4/cosign-darwin-arm64 9f9b8cd557cf2e5b3df3373a00baa005a86b02391e3e06dd0ce37b3a1533d3a4 "$work/cosign" && install -m 0755 "$work/cosign" "$bin/cosign" ;;
     kind/linux) fetch https://github.com/kubernetes-sigs/kind/releases/download/v0.33.0/kind-linux-amd64 aee6151561422756b764a4ae28e7f44cda5af5a9eead3cc9985112b1de8d8e0d "$work/kind" && install -m 0755 "$work/kind" "$bin/kind" ;;
     kind/darwin) fetch https://github.com/kubernetes-sigs/kind/releases/download/v0.33.0/kind-darwin-arm64 0c8c7dbe5e23594a198b786c4bc13dacc101fa6196b0cb0b23a1ca44e61f4b4f "$work/kind" && install -m 0755 "$work/kind" "$bin/kind" ;;
-    kubectl/linux) fetch https://dl.k8s.io/release/v1.36.6/bin/linux/amd64/kubectl 29818b6729dc9262b692307470d0558d027725e738be5dd47c760261868a2634 "$work/kubectl" && install -m 0755 "$work/kubectl" "$bin/kubectl" ;;
-    kubectl/darwin) fetch https://dl.k8s.io/release/v1.36.6/bin/darwin/arm64/kubectl 1cf735c3d35ccfec28d0618784cb06a4614d2c42aade28b6be0eab76a2ffb623 "$work/kubectl" && install -m 0755 "$work/kubectl" "$bin/kubectl" ;;
+    kubectl/linux) fetch https://dl.k8s.io/release/v1.37.2/bin/linux/amd64/kubectl c04487523e7aa7d1493f7808174c899db93d7a9cf57531420cd76b9bd415f8f4 "$work/kubectl" && install -m 0755 "$work/kubectl" "$bin/kubectl" ;;
+    kubectl/darwin) fetch https://dl.k8s.io/release/v1.37.2/bin/darwin/arm64/kubectl 55701af0d51815ee335f240e48acf0959c3c23017ed3fa816e880c4a92bae581 "$work/kubectl" && install -m 0755 "$work/kubectl" "$bin/kubectl" ;;
     *)
       echo "herramienta desconocida: $tool" >&2
       exit 2
