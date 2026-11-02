@@ -83,6 +83,10 @@ bad_case "falta required_signatures" 1 rulesets__101.json '.rules |= map(select(
 bad_case "allowed_merge_methods con merge" 1 rulesets__101.json '(.rules[] | select(.type == "pull_request") | .parameters.allowed_merge_methods) = ["merge","squash"]'
 bad_case "check lint ausente" 1 rulesets__101.json '(.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks) = []'
 bad_case "check resultado ausente" 1 rulesets__101.json '(.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks) |= map(select(.context != "resultado"))'
+bad_case "check chart ausente" 1 rulesets__101.json '(.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks) |= map(select(.context != "chart"))'
+bad_case "check contenido ausente" 1 rulesets__101.json '(.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks) |= map(select(.context != "contenido"))'
+bad_case "tags-v sin chart-v*" 1 rulesets__102.json '.conditions.ref_name.include = ["refs/tags/v*"]'
+bad_case "tags-v con un patrón de más" 1 rulesets__102.json '.conditions.ref_name.include += ["refs/tags/*"]'
 bad_case "check lint con otra app" 1 rulesets__101.json '(.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks[0].integration_id) = 1'
 bad_case "rama no al día (strict false)" 1 rulesets__101.json '(.rules[] | select(.type == "required_status_checks") | .parameters.strict_required_status_checks_policy) = false'
 bad_case "ruleset tags-v ausente" 1 rulesets.json 'map(select(.name != "tags-v"))'
@@ -177,7 +181,7 @@ for c in tercero tag sha-corto pull-request-target secrets-inherit sin-permissio
   expect_exit "check-workflows: falla con $c" 1 $?
 done
 
-for c in prt-solo-en-if call-ok write-packages-ok; do
+for c in prt-solo-en-if call-ok write-packages-ok release-chart-ok; do
   bash "$root/scripts/check-workflows.sh" "$here/fixtures/workflows/$c" >/dev/null 2>&1
   expect_exit "check-workflows: fixture $c pasa" 0 $?
 done
